@@ -46,7 +46,7 @@ A web app that hosts a Pokémon detector.
 | Topic | Cmds | Note(s) |
 |-------|------|---------|
 | UV Env Terminal | `source .venv/bin/activate` | Opens Terminal in UV Env as defined in `.venv` <br> _Works as if you put `uv run` in front of all cmds_ |
-| CLI Script: `poke` | `uv run poke <img_path>` | Predicts What Pokemon in the Image <br> _Default model is trained on Gen1 Only_ |
+| CLI Script: `poke` | `uv run poke <img_path>` | Predicts what Pokémon is in the image <br> _Requires downloading of [model](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing) to `scirpts/cli`_ <br> _Default model is trained on Gen1 only_ |
 
 ---
 
