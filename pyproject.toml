@@ -1,0 +1,30 @@
+[project]
+name = "pokemondetector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.2.1",
+    "numpy>=2.2.6",
+    "timm>=1.0.15",
+    "torch>=2.7.1",
+]
+
+# Cant use `uv add`, must update manually
+[project.optional-dependencies]
+dev = [ # Dev only dependencies
+    "notebook",
+    "ipykernel",
+    "jupyterlab",
+]
+
+
+[project.scripts]
+poke = "scripts.cli.detector:cli"
+
+[tool.setuptools]
+packages = ["scripts.cli"]
+
+[tool.uv]
+package = true
