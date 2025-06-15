@@ -1,0 +1,37 @@
+
+version: '3.8'
+
+services:
+  pokemon-detector:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount model directory - place your model file here
+      - "./models:/app/scripts/cli"
+      # Optional: mount for persistent uploads
+      - "./uploads:/app/uploads"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add nginx for production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./nginx.conf:/etc/nginx/nginx.conf:ro"
+      # Add SSL certificates if needed
+      # - "./ssl:/etc/nginx/ssl:ro"
+    depends_on:
+      - pokemon-detector
+    restart: unless-stopped
