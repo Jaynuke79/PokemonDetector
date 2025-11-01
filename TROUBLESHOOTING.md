@@ -2,19 +2,33 @@
 
 Having issues building the Windows executable? This guide will help you diagnose and fix common problems.
 
-## 🔬 First Step: Run the Diagnostic Script
+## 🔬 First Step: Run the Diagnostic Scripts
 
-**Before anything else, run this:**
+**Before anything else, run these diagnostic scripts:**
 
+### General Diagnostic
 ```batch
 diagnose.bat
 ```
+Shows: directory structure, what exists, where you are
 
-This will show you:
-- Where the script thinks it is
-- What directories exist
-- What files are in scripts/cli
-- Whether the model file is found
+### Model File Specific
+```batch
+diagnose_model.bat
+```
+Shows: detailed info about the model file, hidden extensions, file size
+
+### Quick Test
+```batch
+test_file_exists.bat
+```
+Shows: simple yes/no for each file detection
+
+### Auto-Fix (tries to fix common issues)
+```batch
+fix_model_file.bat
+```
+Attempts to automatically fix: hidden .txt extensions, numbered filenames
 
 Copy the output and use it to help debug the issue. It will save you a lot of time!
 
@@ -89,13 +103,26 @@ C:\Users\You\PokemonDetector> build_windows.bat
 2. Click "Download"
 3. Save to `scripts\cli\best_model_fold1.pth`
 
-**Solution 2: Check File Extension**
+**Solution 2: Check File Extension (Most Common Issue!)**
+
+Run the auto-fix script first:
+```batch
+fix_model_file.bat
+```
+
+Or manually check:
+
 Windows hides file extensions by default. To show them:
 1. Open File Explorer
 2. Click "View" tab
 3. Check "File name extensions"
 4. Check if the file is actually `best_model_fold1.pth.txt`
 5. If so, rename to remove `.txt`
+
+Or use command line:
+```batch
+ren "scripts\cli\best_model_fold1.pth.txt" "best_model_fold1.pth"
+```
 
 **Solution 3: Use Full Path**
 If the relative path doesn't work, try copying the file using full path:
@@ -118,6 +145,40 @@ scripts
     ├── detector.py
     └── gengar.png
 ```
+
+---
+
+## 🪟 Running in WSL (Windows Subsystem for Linux)
+
+### Symptom
+```
+cd: can't cd to ...
+```
+or batch commands don't work properly
+
+### Solution
+**Don't run Windows .bat files in WSL!**
+
+These are Windows batch scripts and must run in Windows Command Prompt or PowerShell.
+
+1. Copy your repository to a Windows path:
+   ```bash
+   # From WSL
+   cp -r /path/to/PokemonDetector /mnt/c/Users/YourName/PokemonDetector
+   ```
+
+2. Open Windows Command Prompt (not WSL!)
+   ```
+   Win + R → type "cmd" → Enter
+   ```
+
+3. Navigate to the Windows path:
+   ```batch
+   cd C:\Users\YourName\PokemonDetector
+   build_windows.bat
+   ```
+
+**Important:** Use Windows paths (C:\...) not WSL paths (/mnt/c/... or /home/...)
 
 ---
 
