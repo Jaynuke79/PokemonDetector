@@ -38,37 +38,87 @@ echo Checking for model file...
 echo Looking in: %CD%\scripts\cli\
 echo.
 
-if exist "scripts\cli\" (
-    echo scripts\cli\ directory exists
-    echo Contents of scripts\cli\:
-    dir /b scripts\cli\
+REM First check if scripts directory exists (without trailing slash for compatibility)
+if not exist "scripts" (
+    echo ================================================================
+    echo ERROR: 'scripts' directory not found!
     echo.
-) else (
-    echo ERROR: scripts\cli\ directory not found!
-    echo Make sure you're running this script from the project root directory.
+    echo Current directory: %CD%
+    echo.
+    echo This script must be run from the PokemonDetector project root.
+    echo Make sure you have the complete project structure.
+    echo.
+    echo Expected structure:
+    echo   PokemonDetector\
+    echo   ├── build_windows.bat  (this file)
+    echo   ├── scripts\
+    echo   │   └── cli\
+    echo   │       ├── detector.py
+    echo   │       ├── class_names.json
+    echo   │       └── best_model_fold1.pth
+    echo.
+    echo TIP: Run diagnose.bat to see detailed diagnostic information.
+    echo ================================================================
+    echo.
     pause
     exit /b 1
 )
 
-if not exist "scripts\cli\best_model_fold1.pth" (
-    echo.
+REM Check if cli subdirectory exists
+if not exist "scripts\cli" (
     echo ================================================================
-    echo WARNING: Model file not found!
+    echo ERROR: 'scripts\cli' directory not found!
     echo.
-    echo Expected location: %CD%\scripts\cli\best_model_fold1.pth
-    echo.
-    echo Please download from:
-    echo https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
-    echo.
-    echo Save the file as: scripts\cli\best_model_fold1.pth
+    echo The 'scripts' folder exists but 'cli' subfolder is missing.
+    echo You may have an incomplete project clone.
     echo ================================================================
     echo.
     pause
     exit /b 1
-) else (
-    echo Model file found: scripts\cli\best_model_fold1.pth
-    echo.
 )
+
+echo scripts\cli directory found
+echo Contents of scripts\cli:
+dir /b scripts\cli
+echo.
+
+REM Check for required files
+if not exist "scripts\cli\detector.py" (
+    echo WARNING: detector.py not found in scripts\cli
+)
+
+if not exist "scripts\cli\class_names.json" (
+    echo WARNING: class_names.json not found in scripts\cli
+)
+
+REM Check for model file
+if not exist "scripts\cli\best_model_fold1.pth" (
+    echo.
+    echo ================================================================
+    echo ERROR: Model file not found!
+    echo.
+    echo Expected location: %CD%\scripts\cli\best_model_fold1.pth
+    echo.
+    echo Please download the model from:
+    echo https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
+    echo.
+    echo Save it as: scripts\cli\best_model_fold1.pth
+    echo.
+    echo IMPORTANT: Make sure the filename is exactly:
+    echo   best_model_fold1.pth
+    echo.
+    echo NOT:
+    echo   best_model_fold1.pth.txt
+    echo   best_model_fold1 (1).pth
+    echo   best_model_fold1.PTH
+    echo ================================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+echo [OK] Model file found: best_model_fold1.pth
+echo.
 
 REM Build the executable
 echo.

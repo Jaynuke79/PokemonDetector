@@ -2,6 +2,24 @@
 
 Having issues building the Windows executable? This guide will help you diagnose and fix common problems.
 
+## 🔬 First Step: Run the Diagnostic Script
+
+**Before anything else, run this:**
+
+```batch
+diagnose.bat
+```
+
+This will show you:
+- Where the script thinks it is
+- What directories exist
+- What files are in scripts/cli
+- Whether the model file is found
+
+Copy the output and use it to help debug the issue. It will save you a lot of time!
+
+---
+
 ## 🔍 Model File Not Found
 
 ### Symptom
@@ -12,12 +30,24 @@ WARNING: Model file not found at scripts\cli\best_model_fold1.pth
 
 ### Diagnosis Steps
 
+**0. Run the diagnostic script first:**
+```batch
+diagnose.bat
+```
+
 **1. Check if you downloaded the model:**
 ```batch
 dir scripts\cli\best_model_fold1.pth
 ```
 
 If you see "File Not Found", you need to download it.
+
+**1b. Check if the scripts directory exists:**
+```batch
+dir scripts\cli
+```
+
+If you get "The system cannot find the path specified", the directory structure is missing.
 
 **2. Check the file name exactly:**
 The file must be named **exactly**: `best_model_fold1.pth`
@@ -264,6 +294,63 @@ If it's much smaller (<100MB), something went wrong.
 - [ ] Contents of `scripts\cli\` directory
 - [ ] Screenshot of the error
 - [ ] Steps you've already tried
+
+---
+
+## 🔍 Directory Not Found Error
+
+### Symptom
+```
+ERROR: 'scripts' directory not found!
+```
+or
+```
+ERROR: 'scripts\cli' directory not found!
+```
+
+### Cause
+The project structure is incomplete or you're in the wrong directory.
+
+### Solutions
+
+**Solution 1: Verify Project Structure**
+
+Run these commands to check:
+```batch
+dir
+dir scripts
+dir scripts\cli
+```
+
+You should see:
+- `build_windows.bat` in the root
+- `scripts` folder in the root
+- `cli` folder inside scripts
+- Files inside `scripts\cli`: detector.py, class_names.json, gengar.png
+
+**Solution 2: Re-clone/Re-download the Project**
+
+If directories are missing:
+```batch
+git clone https://github.com/Jaynuke79/PokemonDetector.git
+cd PokemonDetector
+```
+
+**Solution 3: Check if You Extracted ZIP Correctly**
+
+If you downloaded a ZIP file, make sure you:
+1. Extracted ALL folders (not just files)
+2. Didn't extract into a nested folder
+3. Have the complete directory structure
+
+**Solution 4: Create Missing Directories**
+
+If only the directories are missing (files exist elsewhere):
+```batch
+mkdir scripts
+mkdir scripts\cli
+REM Then move the Python files into scripts\cli\
+```
 
 ---
 
