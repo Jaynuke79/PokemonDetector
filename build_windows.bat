@@ -7,6 +7,13 @@ echo Pokemon Detector Windows Build
 echo ===================================
 echo.
 
+REM Change to script directory to ensure correct relative paths
+cd /d "%~dp0"
+
+REM Show current directory for debugging
+echo Current directory: %CD%
+echo.
+
 REM Check if virtual environment exists
 if not exist ".venv" (
     echo Creating virtual environment...
@@ -25,17 +32,42 @@ pip install pyinstaller
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install timm click numpy pillow
 
-REM Check if model file exists
+REM Check if model file exists with better diagnostics
+echo.
+echo Checking for model file...
+echo Looking in: %CD%\scripts\cli\
+echo.
+
+if exist "scripts\cli\" (
+    echo scripts\cli\ directory exists
+    echo Contents of scripts\cli\:
+    dir /b scripts\cli\
+    echo.
+) else (
+    echo ERROR: scripts\cli\ directory not found!
+    echo Make sure you're running this script from the project root directory.
+    pause
+    exit /b 1
+)
+
 if not exist "scripts\cli\best_model_fold1.pth" (
     echo.
     echo ================================================================
-    echo WARNING: Model file not found at scripts\cli\best_model_fold1.pth
+    echo WARNING: Model file not found!
+    echo.
+    echo Expected location: %CD%\scripts\cli\best_model_fold1.pth
+    echo.
     echo Please download from:
     echo https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
+    echo.
+    echo Save the file as: scripts\cli\best_model_fold1.pth
     echo ================================================================
     echo.
     pause
     exit /b 1
+) else (
+    echo Model file found: scripts\cli\best_model_fold1.pth
+    echo.
 )
 
 REM Build the executable

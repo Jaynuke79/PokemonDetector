@@ -2,21 +2,40 @@
 """
 PyInstaller spec file for Pokemon Detector CLI
 This creates a single-file Windows executable
+
+IMPORTANT: Before building, download the model file:
+https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
+Save as: scripts/cli/best_model_fold1.pth
 """
 
+import os
+from pathlib import Path
+
 block_cipher = None
+
+# Check if model file exists before building
+model_path = Path('scripts/cli/best_model_fold1.pth')
+if not model_path.exists():
+    print("\n" + "="*70)
+    print("ERROR: Model file not found!")
+    print(f"Expected location: {model_path.absolute()}")
+    print("\nPlease download from:")
+    print("https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing")
+    print("="*70 + "\n")
+    raise FileNotFoundError(f"Model file not found: {model_path}")
+
+# Build data files list
+datas = [
+    ('scripts/cli/class_names.json', 'scripts/cli'),
+    ('scripts/cli/gengar.png', 'scripts/cli'),
+    ('scripts/cli/best_model_fold1.pth', 'scripts/cli'),
+]
 
 a = Analysis(
     ['scripts/cli/detector.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('scripts/cli/class_names.json', 'scripts/cli'),
-        ('scripts/cli/gengar.png', 'scripts/cli'),
-        # Note: Model file (best_model_fold1.pth) should be placed in scripts/cli/
-        # Download from: https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
-        ('scripts/cli/best_model_fold1.pth', 'scripts/cli'),
-    ],
+    datas=datas,
     hiddenimports=[
         'click',
         'torch',
