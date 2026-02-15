@@ -1,12 +1,24 @@
-# Models Directory
+# Model Files
 
-Place the trained model files here for Docker volume mounting.
+This directory contains the pre-trained model weights and class names for Pokemon detection.
 
 ## Required Files
 
-Download the pre-trained model from:
-https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
+1. **best_model_fold1.pth** - Pre-trained ConvNeXt model weights (151 Pokemon classes, Gen1)
+2. **class_names.json** - JSON file mapping class indices to Pokemon names
 
-Place the downloaded `best_model_fold1.pth` file in this directory.
+## Download
 
-This directory is mounted to `/app/scripts/cli` in the Docker container, making the model available to the application.
+Download the model file from Google Drive:
+[https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-)
+
+Place both files in this directory:
+```
+models/
+├── best_model_fold1.pth
+└── class_names.json
+```
+
+## Note
+
+These files are **not** included in version control due to their size. You must download them manually to use the Pokemon detector.

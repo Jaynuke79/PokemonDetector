@@ -1,7 +1,7 @@
 [project]
 name = "pokemondetector"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pokemon detection using PyTorch ConvNeXt - CLI tool and web application"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -24,10 +24,10 @@ dev = [ # Dev only dependencies
 
 
 [project.scripts]
-poke = "scripts.cli.detector:cli"
+poke = "cli.main:cli"
 
 [tool.setuptools]
-packages = ["scripts.cli"]
+packages = ["cli", "webapp", "lib"]
 
 [tool.uv]
 package = true

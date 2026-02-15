@@ -1,13 +1,15 @@
 services:
   pokemon-detector:
-    build: .
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
     ports:
       - "5000:5000"
     volumes:
       # Mount model directory - place your model file here
-      - "./models:/app/models"
+      - "../models:/app/models"
       # Optional: mount for persistent uploads
-      - "./uploads:/app/uploads"
+      - "../uploads:/app/uploads"
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=0
@@ -28,7 +30,7 @@ services:
     volumes:
       - "./nginx.config:/etc/nginx/nginx.conf:ro"
       # Add SSL certificates if needed
-      # - "./ssl:/etc/nginx/ssl:ro"
+      # - "../ssl:/etc/nginx/ssl:ro"
     depends_on:
       - pokemon-detector
     restart: unless-stopped
