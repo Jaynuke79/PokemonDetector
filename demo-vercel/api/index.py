@@ -56,107 +56,109 @@ Important:
     import time
     max_retries = 2
     retry_delay = 1
-    response = None
 
-    try:
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": os.environ.get('VERCEL_URL', 'https://pokemon-detector.vercel.app'),
-                        "X-Title": "Pokemon Detector Demo"
-                    },
-                    json={
-                        "model": OPENROUTER_MODEL,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": prompt
-                                    },
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:{mime_type};base64,{image_data_base64}"
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    timeout=25  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
-                )
-                break  # Success, exit retry loop
-
-            except requests.exceptions.Timeout:
-                if attempt < max_retries - 1:
-                    print(f"Timeout on attempt {attempt + 1}, retrying...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # Final attempt failed
-                    raise ValueError(
-                        f"OpenRouter API timed out after {max_retries} attempts. "
-                        f"The model '{OPENROUTER_MODEL}' may be too slow for Vercel's free tier (10s limit). "
-                        f"Try: 1) A faster model like 'anthropic/claude-3-haiku', "
-                        f"2) Upgrade to Vercel Pro (60s timeout), or "
-                        f"3) Use a smaller image."
-                    )
-
-        # Process the response (after successful request)
-        response.raise_for_status()
-        result = response.json()
-
-        # Extract the response text
-        if 'choices' not in result or len(result['choices']) == 0:
-            raise ValueError("No response from OpenRouter API")
-
-        response_text = result['choices'][0]['message']['content']
-
-        # Parse the JSON response
+    for attempt in range(max_retries):
         try:
-            # Sometimes the model wraps JSON in markdown code blocks
-            if '```json' in response_text:
-                json_start = response_text.find('```json') + 7
-                json_end = response_text.find('```', json_start)
-                response_text = response_text[json_start:json_end].strip()
-            elif '```' in response_text:
-                json_start = response_text.find('```') + 3
-                json_end = response_text.find('```', json_start)
-                response_text = response_text[json_start:json_end].strip()
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": os.environ.get('VERCEL_URL', 'https://pokemon-detector.vercel.app'),
+                    "X-Title": "Pokemon Detector Demo"
+                },
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:{mime_type};base64,{image_data_base64}"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                timeout=25  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
+            )
 
-            data = json.loads(response_text)
-            predictions = data.get('predictions', [])
+            # Process the response immediately after successful request
+            response.raise_for_status()
+            result = response.json()
 
-            # Format predictions
-            formatted_predictions = []
-            for pred in predictions[:topk]:
-                formatted_predictions.append({
-                    'class_name': pred.get('pokemon', 'Unknown'),
-                    'confidence': f"{pred.get('confidence', 0.0):.4f}",
-                    'percentage': f"{pred.get('confidence', 0.0) * 100:.2f}%"
-                })
+            # Extract the response text
+            if 'choices' not in result or len(result['choices']) == 0:
+                raise ValueError("No response from OpenRouter API")
 
-            return formatted_predictions
+            response_text = result['choices'][0]['message']['content']
 
-        except json.JSONDecodeError as e:
-            # If parsing fails, return a fallback response
-            print(f"Failed to parse OpenRouter response: {e}")
-            print(f"Raw response: {response_text}")
-            return [{
-                'class_name': 'Parsing Error - See Console',
-                'confidence': '0.0000',
-                'percentage': '0.00%'
-            }]
+            # Parse the JSON response
+            try:
+                # Sometimes the model wraps JSON in markdown code blocks
+                if '```json' in response_text:
+                    json_start = response_text.find('```json') + 7
+                    json_end = response_text.find('```', json_start)
+                    response_text = response_text[json_start:json_end].strip()
+                elif '```' in response_text:
+                    json_start = response_text.find('```') + 3
+                    json_end = response_text.find('```', json_start)
+                    response_text = response_text[json_start:json_end].strip()
 
-    except requests.exceptions.RequestException as e:
-        print(f"OpenRouter API error: {e}")
-        raise
+                data = json.loads(response_text)
+                predictions = data.get('predictions', [])
+
+                # Format predictions
+                formatted_predictions = []
+                for pred in predictions[:topk]:
+                    formatted_predictions.append({
+                        'class_name': pred.get('pokemon', 'Unknown'),
+                        'confidence': f"{pred.get('confidence', 0.0):.4f}",
+                        'percentage': f"{pred.get('confidence', 0.0) * 100:.2f}%"
+                    })
+
+                return formatted_predictions
+
+            except json.JSONDecodeError as e:
+                # If parsing fails, return a fallback response
+                print(f"Failed to parse OpenRouter response: {e}")
+                print(f"Raw response: {response_text}")
+                return [{
+                    'class_name': 'Parsing Error - See Console',
+                    'confidence': '0.0000',
+                    'percentage': '0.00%'
+                }]
+
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"Timeout on attempt {attempt + 1}, retrying...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                # Final attempt failed - raise helpful error
+                raise ValueError(
+                    f"OpenRouter API timed out after {max_retries} attempts. "
+                    f"The model '{OPENROUTER_MODEL}' may be too slow for Vercel's free tier (10s limit). "
+                    f"Try: 1) A faster model like 'anthropic/claude-3-haiku', "
+                    f"2) Upgrade to Vercel Pro (60s timeout), or "
+                    f"3) Use a smaller image."
+                )
+
+        except requests.exceptions.RequestException as e:
+            # Other request errors (connection, HTTP errors, etc.)
+            print(f"OpenRouter API error on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            else:
+                raise
 
 
 @app.route('/')
