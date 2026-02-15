@@ -27,8 +27,5 @@
       "src": "/(.*)",
       "dest": "public/$1"
     }
-  ],
-  "env": {
-    "OPENROUTER_MODEL": "anthropic/claude-3.5-sonnet"
-  }
+  ]
 }
