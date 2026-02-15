@@ -19,27 +19,39 @@ def initialize_model():
     try:
         from scripts.cli.detector import load_class_names, load_model, get_device, get_transform
         
-        # Load class names
-        class_names_path = "scripts/cli/class_names.json"
-        if not os.path.exists(class_names_path):
-            print(f"ERROR: Class names file not found at {class_names_path}")
+        # Load class names - check both locations (Docker mount and local)
+        class_names_paths = ["models/class_names.json", "scripts/cli/class_names.json"]
+        class_names_path = None
+        for path in class_names_paths:
+            if os.path.exists(path):
+                class_names_path = path
+                break
+
+        if not class_names_path:
+            print(f"ERROR: Class names file not found. Checked: {class_names_paths}")
             return False
-            
+
         class_names = load_class_names(class_names_path)
         num_classes = len(class_names)
         device = get_device()
-        
-        # Check if model file exists locally
-        model_path = "scripts/cli/best_model_fold1.pth"
-        if not os.path.exists(model_path):
-            print(f"ERROR: Model file not found at {model_path}")
+
+        # Check if model file exists - check both locations (Docker mount and local)
+        model_paths = ["models/best_model_fold1.pth", "scripts/cli/best_model_fold1.pth"]
+        model_path = None
+        for path in model_paths:
+            if os.path.exists(path):
+                model_path = path
+                break
+
+        if not model_path:
+            print(f"ERROR: Model file not found. Checked: {model_paths}")
             print("Please download the model file from:")
             print("https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing")
-            print("And place it in the scripts/cli/ directory")
+            print("And place it in either models/ or scripts/cli/ directory")
             return False
-        
+
         # Load the model
-        model = load_model("scripts/cli/convnext_base", num_classes, model_path, device)
+        model = load_model("convnext_base", num_classes, model_path, device)
         if model is None:
             print("ERROR: Failed to load model")
             return False

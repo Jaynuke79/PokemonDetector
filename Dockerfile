@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p scripts/cli templates static
+RUN mkdir -p scripts/cli templates static models uploads
 
 # Download model file if not present (optional - can be mounted as volume)
 # RUN wget -O scripts/cli/best_model_fold1.pth "https://drive.google.com/uc?export=download&id=1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-"
