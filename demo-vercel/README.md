@@ -27,20 +27,54 @@ Once deployed, you'll get a URL like: `https://pokemon-detector-demo.vercel.app`
 3. **Node.js** (for Vercel CLI)
    - Install from [nodejs.org](https://nodejs.org/)
 
-## 🎯 Quick Deploy (2 Minutes)
+## 🎯 Quick Deploy (Manual Dashboard Deployment)
 
-### Option 1: One-Click Deploy (Easiest!)
+### Deploy from Vercel Dashboard (Recommended)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/pokemonDetector/tree/main/demo-vercel&env=OPENROUTER_API_KEY&envDescription=OpenRouter%20API%20Key%20from%20openrouter.ai/keys)
+**Step 1: Prepare Your Files**
+```bash
+# Make sure you have all files in demo-vercel/
+cd demo-vercel
+ls
+# Should see: api/ public/ vercel.json requirements.txt README.md
+```
 
-1. Click the button above
-2. Connect your GitHub account
-3. Add environment variable:
-   - `OPENROUTER_API_KEY`: Your OpenRouter API key
-4. Click "Deploy"
-5. Get your live URL! 🎉
+**Step 2: Create a Vercel Account**
+1. Go to [vercel.com](https://vercel.com)
+2. Sign up (free account)
+3. Verify your email
 
-### Option 2: Vercel CLI
+**Step 3: Manual Deployment**
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Choose **"Browse"** or drag & drop the `demo-vercel` folder
+3. Configure project:
+   - **Project Name:** `pokemon-detector-demo` (or your choice)
+   - **Framework Preset:** Other
+   - **Root Directory:** `.` (leave as is if uploading just demo-vercel folder)
+   - **Build Command:** (leave empty)
+   - **Output Directory:** (leave empty)
+
+**Step 4: Add Environment Variables**
+In the deployment screen, click "Environment Variables":
+- **Name:** `OPENROUTER_API_KEY`
+- **Value:** Your OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys)
+- Click "Add"
+
+**Step 5: Deploy**
+1. Click **"Deploy"**
+2. Wait 30-60 seconds for build to complete
+3. Get your live URL! 🎉
+
+**Your URL will be:** `https://pokemon-detector-demo.vercel.app` (or similar)
+
+---
+
+### Alternative: CLI Deployment (Optional - Advanced Users Only)
+
+<details>
+<summary>Click to expand CLI instructions</summary>
+
+**If you prefer command-line deployment:**
 
 ```bash
 # 1. Install Vercel CLI
@@ -55,34 +89,16 @@ vercel login
 # 4. Add your OpenRouter API key
 vercel env add OPENROUTER_API_KEY
 
-# Paste your API key when prompted
-
 # 5. Deploy!
 vercel --prod
 
-# 6. You'll get a URL like: https://pokemon-detector-xyz.vercel.app
+# Or use the included script:
+./deploy-cli.sh
 ```
 
-**That's it!** Your demo is live!
+**Note:** CLI deployment is NOT required. Dashboard deployment is easier for most users.
 
-### Option 3: GitHub Integration (Auto-Deploy)
-
-```bash
-# 1. Push demo-vercel to GitHub
-git add demo-vercel/
-git commit -m "Add Vercel demo"
-git push
-
-# 2. Go to vercel.com
-# 3. Click "Add New Project"
-# 4. Import your GitHub repository
-# 5. Set Root Directory to: demo-vercel
-# 6. Add environment variable:
-#    - OPENROUTER_API_KEY: your_key_here
-# 7. Click "Deploy"
-
-# Now every git push auto-deploys! 🚀
-```
+</details>
 
 ## 🔧 Configuration
 

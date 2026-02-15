@@ -135,6 +135,19 @@ Important:
         raise
 
 
+@app.route('/')
+@app.route('/api')
+def root():
+    """Root endpoint - confirms API is working."""
+    return jsonify({
+        'message': 'Pokemon Detector API is running',
+        'endpoints': {
+            'health': '/api/health',
+            'predict': '/api/predict (POST)'
+        }
+    })
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint."""
@@ -187,20 +200,9 @@ def predict():
         return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
 
 
-# Vercel serverless function handler
-def handler(request, context=None):
-    """
-    Vercel serverless function handler.
-    This is the entry point for Vercel.
-    """
-    with app.request_context(request.environ):
-        try:
-            response = app.full_dispatch_request()
-            return response
-        except Exception as e:
-            print(f"Handler error: {e}")
-            return jsonify({'error': str(e)}), 500
-
+# Vercel needs the app to be exported
+# The Flask app object itself is the handler
+# No need for a wrapper function
 
 # For local testing
 if __name__ == '__main__':

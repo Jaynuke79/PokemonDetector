@@ -1,10 +1,14 @@
 #!/bin/bash
-# Quick deployment script for Vercel
+# OPTIONAL: CLI deployment script for Vercel
+# Most users should use the Vercel Dashboard instead: https://vercel.com/new
+# This script is for advanced users who prefer command-line deployment
 
 set -e
 
-echo "🚀 Pokemon Detector - Vercel Deployment"
-echo "========================================"
+echo "🚀 Pokemon Detector - Vercel CLI Deployment (Optional)"
+echo "======================================================="
+echo ""
+echo "ℹ️  Note: You can also deploy via Vercel Dashboard at https://vercel.com/new"
 echo ""
 
 # Check if Vercel CLI is installed
