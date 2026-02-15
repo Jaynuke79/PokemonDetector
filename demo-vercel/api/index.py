@@ -53,59 +53,62 @@ Important:
 - Return ONLY the JSON, no other text"""
 
     # Call OpenRouter API with retry logic
+    import time
     max_retries = 2
     retry_delay = 1
+    response = None
 
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": os.environ.get('VERCEL_URL', 'https://pokemon-detector.vercel.app'),
-                    "X-Title": "Pokemon Detector Demo"
-                },
-                json={
-                    "model": OPENROUTER_MODEL,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": prompt
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{mime_type};base64,{image_data_base64}"
+    try:
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": os.environ.get('VERCEL_URL', 'https://pokemon-detector.vercel.app'),
+                        "X-Title": "Pokemon Detector Demo"
+                    },
+                    json={
+                        "model": OPENROUTER_MODEL,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": prompt
+                                    },
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:{mime_type};base64,{image_data_base64}"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ]
-                },
-                timeout=25  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
-            )
-            break  # Success, exit retry loop
-
-        except requests.exceptions.Timeout:
-            if attempt < max_retries - 1:
-                print(f"Timeout on attempt {attempt + 1}, retrying...")
-                import time
-                time.sleep(retry_delay)
-                continue
-            else:
-                # Final attempt failed
-                raise ValueError(
-                    f"OpenRouter API timed out after {max_retries} attempts. "
-                    f"The model '{OPENROUTER_MODEL}' may be too slow for Vercel's free tier (10s limit). "
-                    f"Try: 1) A faster model like 'anthropic/claude-3-haiku', "
-                    f"2) Upgrade to Vercel Pro (60s timeout), or "
-                    f"3) Use a smaller image."
+                                ]
+                            }
+                        ]
+                    },
+                    timeout=25  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
                 )
+                break  # Success, exit retry loop
 
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    print(f"Timeout on attempt {attempt + 1}, retrying...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Final attempt failed
+                    raise ValueError(
+                        f"OpenRouter API timed out after {max_retries} attempts. "
+                        f"The model '{OPENROUTER_MODEL}' may be too slow for Vercel's free tier (10s limit). "
+                        f"Try: 1) A faster model like 'anthropic/claude-3-haiku', "
+                        f"2) Upgrade to Vercel Pro (60s timeout), or "
+                        f"3) Use a smaller image."
+                    )
+
+        # Process the response (after successful request)
         response.raise_for_status()
         result = response.json()
 
