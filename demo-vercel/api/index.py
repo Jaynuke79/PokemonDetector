@@ -35,7 +35,7 @@ def predict_with_openrouter(image_data_base64, mime_type='image/jpeg', topk=5):
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
 
     # Prepare the prompt
-    prompt = f"""Analyze this image and identify which Pokemon it is.
+    prompt = f"""Analyze this image and identify which Pokemon it is. If no pokemon is present, return your best guess.
 
 Return ONLY a JSON object with the top {topk} most likely Pokemon, formatted exactly like this:
 {{
@@ -82,7 +82,7 @@ Important:
                     }
                 ]
             },
-            timeout=25  # Vercel has 10s limit for Hobby tier, 25s for Pro
+            timeout=10  # Vercel has 10s limit for Hobby tier, 25s for Pro
         )
 
         response.raise_for_status()
