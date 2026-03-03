@@ -12,10 +12,10 @@ echo Checking for common issues...
 echo.
 
 REM Check for .txt extension
-if exist "scripts\cli\best_model_fold1.pth.txt" (
+if exist "..\models\best_model_fold1.pth.txt" (
     echo FOUND PROBLEM: File has hidden .txt extension
     echo Fixing: Renaming best_model_fold1.pth.txt to best_model_fold1.pth
-    ren "scripts\cli\best_model_fold1.pth.txt" "best_model_fold1.pth"
+    ren "..\models\best_model_fold1.pth.txt" "best_model_fold1.pth"
     if %errorlevel% equ 0 (
         echo SUCCESS: File renamed!
         echo You can now run build_windows.bat
@@ -28,10 +28,10 @@ if exist "scripts\cli\best_model_fold1.pth.txt" (
 )
 
 REM Check for numbered files (browser downloads)
-if exist "scripts\cli\best_model_fold1 (1).pth" (
+if exist "..\models\best_model_fold1 (1).pth" (
     echo FOUND PROBLEM: File has (1) in the name
     echo Fixing: Renaming to correct name
-    ren "scripts\cli\best_model_fold1 (1).pth" "best_model_fold1.pth"
+    ren "..\models\best_model_fold1 (1).pth" "best_model_fold1.pth"
     if %errorlevel% equ 0 (
         echo SUCCESS: File renamed!
         echo You can now run build_windows.bat
@@ -44,10 +44,10 @@ if exist "scripts\cli\best_model_fold1 (1).pth" (
 )
 
 REM Check if file exists with correct name
-if exist "scripts\cli\best_model_fold1.pth" (
+if exist "..\models\best_model_fold1.pth" (
     echo GOOD NEWS: File exists with correct name!
     echo.
-    for %%F in ("scripts\cli\best_model_fold1.pth") do (
+    for %%F in ("..\models\best_model_fold1.pth") do (
         echo Full path: %%~fF
         echo File size: %%~zF bytes
         echo Expected: ~300-500 MB (300000000-500000000 bytes)
@@ -72,18 +72,18 @@ if exist "scripts\cli\best_model_fold1.pth" (
 )
 
 REM If we get here, file not found at all
-echo NO MODEL FILE FOUND in scripts\cli\
+echo NO MODEL FILE FOUND in ..\models\
 echo.
 echo Please check:
 echo 1. Did you download the file from Google Drive?
-echo 2. Did you save it in the scripts\cli\ folder?
+echo 2. Did you save it in the models\ folder?
 echo.
 echo Download link:
 echo https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
 echo.
-echo Save location: %CD%\scripts\cli\best_model_fold1.pth
+echo Save location: %CD%\..\models\best_model_fold1.pth
 echo.
-echo Current files in scripts\cli\:
-dir /b scripts\cli\
+echo Current files in ..\models\:
+dir /b ..\models\
 echo.
 pause

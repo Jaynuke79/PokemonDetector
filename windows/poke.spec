@@ -5,7 +5,7 @@ This creates a single-file Windows executable
 
 IMPORTANT: Before building, download the model file:
 https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing
-Save as: scripts/cli/best_model_fold1.pth
+Save as: models/best_model_fold1.pth
 """
 
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 block_cipher = None
 
 # Check if model file exists before building
-model_path = Path('scripts/cli/best_model_fold1.pth')
+model_path = Path('../models/best_model_fold1.pth')
 if not model_path.exists():
     print("\n" + "="*70)
     print("ERROR: Model file not found!")
@@ -26,14 +26,14 @@ if not model_path.exists():
 
 # Build data files list
 datas = [
-    ('scripts/cli/class_names.json', 'scripts/cli'),
-    ('scripts/cli/gengar.png', 'scripts/cli'),
-    ('scripts/cli/best_model_fold1.pth', 'scripts/cli'),
+    ('../models/class_names.json', 'models'),
+    ('../gengar.png', '.'),
+    ('../models/best_model_fold1.pth', 'models'),
 ]
 
 a = Analysis(
-    ['scripts/cli/detector.py'],
-    pathex=[],
+    ['../cli/main.py'],
+    pathex=['..'],
     binaries=[],
     datas=datas,
     hiddenimports=[
