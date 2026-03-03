@@ -96,7 +96,8 @@ Important:
 
             # Extract the response text
             if 'choices' not in result or len(result['choices']) == 0:
-                raise ValueError("No response from OpenRouter API")
+                openrouter_error = result.get('error', result)
+                raise ValueError(f"No choices in OpenRouter response: {openrouter_error}")
 
             response_text = result['choices'][0]['message']['content']
 
