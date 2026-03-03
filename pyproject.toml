@@ -20,6 +20,7 @@ dev = [ # Dev only dependencies
     "notebook",
     "ipykernel",
     "jupyterlab",
+    "pyinstaller>=6.0.0",  # For building Windows executables
 ]
 
 

@@ -17,6 +17,11 @@ dist/
 *.egg-info/
 .eggs/
 
+# PyInstaller
+*.spec.bak
+*.manifest
+*.exe.log
+
 # Node.js
 node_modules/
 npm-debug.log*
