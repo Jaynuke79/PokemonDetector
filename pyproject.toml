@@ -1,14 +1,17 @@
 [project]
 name = "pokemondetector"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pokemon detection using PyTorch ConvNeXt - CLI tool and web application"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.2.1",
+    "flask>=3.1.1",
     "numpy>=2.2.6",
+    "pillow>=11.2.1",
     "timm>=1.0.15",
     "torch>=2.7.1",
+    "torchvision>=0.22.1",
 ]
 
 # Cant use `uv add`, must update manually
@@ -22,10 +25,10 @@ dev = [ # Dev only dependencies
 
 
 [project.scripts]
-poke = "scripts.cli.detector:cli"
+poke = "cli.main:cli"
 
 [tool.setuptools]
-packages = ["scripts.cli"]
+packages = ["cli", "webapp", "lib"]
 
 [tool.uv]
 package = true

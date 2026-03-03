@@ -1,52 +1,165 @@
 # PokemonDetector
 
-A web application that detects Pokémon from images.  
-Originally built as a class project, this repository demonstrates modern project development and management practices.
+A Pokemon detection system using a PyTorch-based ConvNeXt model to identify Pokemon from images.
+
+Originally built as a class project, this repository demonstrates modern project development and management practices with clearly separated outputs.
 
 ---
 
-## 🚀 Project Goals
+## 📦 Project Outputs
 
-- **Familiarize with project management tools**
-- **Containerize with Docker**
-- **Develop frontend with Replit**
-- **Implement ML with PyTorch**
+This project provides **2 functional outputs** and **1 deployment method**:
+
+### Functional Outputs
+
+1. **CLI Tool** (`poke` command) - Command-line interface for quick predictions
+2. **Web Application** - Flask-based web interface with image upload
+
+### Deployment Method
+
+3. **Docker Container** - Containerized deployment of the web application
 
 ---
 
 ## 🗂️ Directory Structure
 
-| Directory      | Purpose                        |
-| -------------- | ----------------------------- |
-| **app/**       | Web server & API code          |
-| **data/**      | Datasets and related files     |
-| **frontend/**  | Frontend (UI) source code      |
-| **scripts/**   | Utility and helper scripts     |
-| **tests/**     | Automated tests                |
+```
+pokemonDetector/
+├── cli/                    # CLI Tool Output
+│   ├── __init__.py
+│   └── main.py            # CLI interface
+│
+├── webapp/                # Web Application Output
+│   ├── app.py             # Flask application
+│   ├── templates/         # HTML templates
+│   └── static/            # Static assets
+│
+├── lib/                   # Shared Core Library
+│   ├── __init__.py
+│   └── detector_core.py   # Model loading & prediction logic
+│
+├── deployment/            # Docker Deployment Method
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── nginx.config
+│
+├── models/                # Model Files (see models/README.md)
+│   ├── best_model_fold1.pth      # Download required
+│   └── class_names.json          # Download required
+│
+└── pyproject.toml         # Project configuration
+```
 
 ---
 
-## 📦 Deliverable
+## 🚀 Quick Start
 
-A web app that hosts a Pokémon detector.
+### Prerequisites
+
+1. **Install UV** (Python package manager)
+2. **Download Model Files** - See [models/README.md](models/README.md) for instructions
+
+### Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd pokemonDetector
+
+# Activate UV environment
+source .venv/bin/activate
+
+# Install dependencies
+uv sync
+```
 
 ---
 
-## 📝 Project Management
+## 🎯 Using the Outputs
 
-- **UV** for project management
-- **Docker** for containerization
-- **Replit** for frontend development
-- **PyTorch** for machine learning
+### 1. CLI Tool
+
+```bash
+# Basic prediction
+uv run poke path/to/image.jpg
+
+# Top 3 predictions with verbose output
+uv run poke path/to/image.jpg --topk 3 --verbose true
+
+# Custom model weights
+uv run poke path/to/image.jpg --weights models/best_model_fold1.pth --class-names-path models/class_names.json
+```
+
+### 2. Web Application (Local)
+
+```bash
+# Run Flask app
+python webapp/app.py
+
+# Access at http://localhost:5000
+```
+
+Upload an image through the web interface to get top 5 predictions.
+
+### 3. Docker Deployment
+
+```bash
+# Navigate to deployment directory
+cd deployment
+
+# Build and run with docker compose
+docker compose up --build
+
+# Access at http://localhost:5000
+# Optional nginx reverse proxy at http://localhost:80
+
+# Stop services
+docker compose down
+```
 
 ---
 
-## 🗒️ Walk Throughs
+## 🏗️ Architecture
 
-| Topic | Cmds | Note(s) |
-|-------|------|---------|
-| UV Env Terminal | `source .venv/bin/activate` | Opens Terminal in UV Env as defined in `.venv` <br> _Works as if you put `uv run` in front of all cmds_ |
-| CLI Script: `poke` | `uv run poke <img_path>` | Predicts what Pokémon is in the image <br> _Requires downloading of [model](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing) to `scirpts/cli`_ <br> _Default model is trained on Gen1 only_ |
+All outputs share the same core detection logic from `lib/detector_core.py`:
+
+- **Model**: ConvNeXt base architecture (via `timm` library)
+- **Input**: Images resized to 224x224, normalized with ImageNet stats
+- **Output**: Top-k predictions with confidence scores
+- **Classes**: 151 Pokemon (Generation 1)
+
+**Shared Library (`lib/detector_core.py`):**
+- `load_class_names()` - Load Pokemon class labels
+- `load_model()` - Initialize ConvNeXt model with weights
+- `get_device()` - Detect CUDA/CPU
+- `get_transform()` - Image preprocessing pipeline
+- `predict_image()` - Run inference and return top-k results
+
+**CLI Tool** imports the library and provides a Click-based command interface.
+
+**Web Application** imports the library and wraps it in Flask routes with HTML upload form.
+
+**Docker Deployment** containerizes the web application with volume mounts for model files.
+
+---
+
+## 📝 Technologies
+
+- **UV** - Python package management
+- **PyTorch** - Deep learning framework
+- **TIMM** - Pre-trained model library
+- **Click** - CLI framework
+- **Flask** - Web framework
+- **Docker** - Containerization
+
+---
+
+## ⚠️ Important Notes
+
+- Model files (`best_model_fold1.pth`, `class_names.json`) are **not** in version control
+- Download them from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
+- Place them in the `models/` directory
+- The model is trained on Generation 1 Pokemon only (151 classes)
 
 ---
 
