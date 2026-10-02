@@ -8,16 +8,12 @@ Originally built as a class project, this repository demonstrates modern project
 
 ## 📦 Project Outputs
 
-This project provides **2 functional outputs** and **1 deployment method**:
+This project contains 4 outputs: a linux cli tool, a windows cli tool, a local docker web-app, and an online vercel demo.
 
-### Functional Outputs
-
-1. **CLI Tool** (`poke` command) - Command-line interface for quick predictions
-2. **Web Application** - Flask-based web interface with image upload
-
-### Deployment Method
-
-3. **Docker Container** - Containerized deployment of the web application
+1. **Linux CLI Tool** (`poke` command) - Command-line interface for quick predictions
+2. **Windows CLI Tool** - Build `poke.exe` with the files in [windows/](windows/)
+3. **Docker Web Application** - Flask-based web interface with image upload, run locally in a Docker container
+4. **Vercel Demo** - Online demo hosted on Vercel (see [demo-vercel/](demo-vercel/))
 
 ---
 
