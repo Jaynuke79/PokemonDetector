@@ -4,17 +4,18 @@ Flask web application for Pokemon detection.
 Provides a web interface for uploading images and getting Pokemon predictions.
 """
 
-from flask import Flask, request, render_template, jsonify
+import contextlib
 import os
 import tempfile
-from werkzeug.utils import secure_filename
+
+from flask import Flask, jsonify, render_template, request
 
 # Import core detection functions
 from lib.detector_core import (
-    load_class_names,
-    load_model,
     get_device,
     get_transform,
+    load_class_names,
+    load_model,
     predict_image,
 )
 
@@ -83,7 +84,7 @@ def initialize_model():
         print(f"Number of classes: {num_classes}")
         return True
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Failed to initialize model: {e}")
         return False
 
@@ -153,16 +154,13 @@ def predict():
 
                 return jsonify({"predictions": predictions})
 
-            except Exception as e:
-                print(f"Prediction error: {str(e)}")
-                return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+            except Exception as e:  # noqa: BLE001
+                print(f"Prediction error: {e!s}")
+                return jsonify({"error": f"Prediction failed: {e!s}"}), 500
 
             finally:
-                # Clean up temporary file
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(tmp_file.name)
-                except:
-                    pass
 
     return jsonify({"error": "Invalid file type"}), 400
 
