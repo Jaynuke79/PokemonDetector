@@ -15,11 +15,11 @@ from lib.detector_core import (
     load_model,
     get_device,
     get_transform,
-    predict_image
+    predict_image,
 )
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 
 # Global variables for model components
 class_names = None
@@ -64,7 +64,9 @@ def initialize_model():
         if not model_path:
             print(f"ERROR: Model file not found. Checked: {model_paths}")
             print("Please download the model file from:")
-            print("https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing")
+            print(
+                "https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing"
+            )
             print("And place it in the models/ directory")
             return False
 
@@ -96,19 +98,19 @@ if not initialize_model():
     print("2. The class_names.json file is in models/")
 
 
-@app.route('/')
+@app.route("/")
 def index():
     """Render the main page."""
-    return render_template('index.html')
+    return render_template("index.html")
 
 
-@app.route('/health')
+@app.route("/health")
 def health():
     """Health check endpoint for monitoring."""
-    return jsonify({'status': 'healthy', 'model_loaded': model is not None})
+    return jsonify({"status": "healthy", "model_loaded": model is not None})
 
 
-@app.route('/predict', methods=['POST'])
+@app.route("/predict", methods=["POST"])
 def predict():
     """Handle prediction requests.
 
@@ -118,38 +120,42 @@ def predict():
         JSON response with predictions or error message
     """
     if model is None:
-        return jsonify({'error': 'Model not loaded. Please check server logs.'}), 500
+        return jsonify({"error": "Model not loaded. Please check server logs."}), 500
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
 
     if file and allowed_file(file.filename):
         # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
             file.save(tmp_file.name)
 
             try:
                 # Real model prediction
-                results = predict_image(tmp_file.name, model, transform, device, class_names, topk=5)
+                results = predict_image(
+                    tmp_file.name, model, transform, device, class_names, topk=5
+                )
 
                 # Format results
                 predictions = []
                 for idx, class_name, confidence in results:
-                    predictions.append({
-                        'class_name': class_name,
-                        'confidence': f"{confidence:.4f}",
-                        'percentage': f"{confidence * 100:.2f}%"
-                    })
+                    predictions.append(
+                        {
+                            "class_name": class_name,
+                            "confidence": f"{confidence:.4f}",
+                            "percentage": f"{confidence * 100:.2f}%",
+                        }
+                    )
 
-                return jsonify({'predictions': predictions})
+                return jsonify({"predictions": predictions})
 
             except Exception as e:
                 print(f"Prediction error: {str(e)}")
-                return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
+                return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
             finally:
                 # Clean up temporary file
@@ -158,7 +164,7 @@ def predict():
                 except:
                     pass
 
-    return jsonify({'error': 'Invalid file type'}), 400
+    return jsonify({"error": "Invalid file type"}), 400
 
 
 def allowed_file(filename):
@@ -170,9 +176,9 @@ def allowed_file(filename):
     Returns:
         bool: True if file extension is allowed
     """
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp"}
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
