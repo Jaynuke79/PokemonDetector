@@ -4,12 +4,11 @@ Vercel serverless function for Pokemon detection using OpenRouter API.
 This is the backend API that handles image uploads and predictions.
 """
 
-from flask import Flask, request, jsonify
-import os
-import base64
-import requests
-import tempfile
 import json
+import os
+
+import requests
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
@@ -225,9 +224,9 @@ def predict():
         predictions = predict_with_openrouter(image_base64, mime_type, topk=5)
         return jsonify({"predictions": predictions})
 
-    except Exception as e:
-        print(f"Prediction error: {str(e)}")
-        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+    except Exception as e:  # noqa: BLE001
+        print(f"Prediction error: {e!s}")
+        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
 
 
 # Vercel needs the app to be exported
