@@ -5,6 +5,7 @@ This is the backend API that handles image uploads and predictions.
 """
 
 import json
+import math
 import os
 
 import requests
@@ -16,6 +17,50 @@ app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 # OpenRouter configuration
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+
+
+def parse_error_fallback():
+    return [
+        {
+            "class_name": "Parsing Error - See Console",
+            "confidence": "0.0000",
+            "percentage": "0.00%",
+        }
+    ]
+
+
+def coerce_confidence(value):
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return confidence if math.isfinite(confidence) else 0.0
+
+
+def format_predictions(data, topk):
+    """
+    Convert the model's parsed JSON into display-ready predictions.
+
+    Returns an empty list when the reply does not have the expected shape, so
+    callers can treat it the same as unparseable JSON.
+    """
+    if not isinstance(data, dict):
+        return []
+    predictions = data.get("predictions")
+    if not isinstance(predictions, list):
+        return []
+
+    formatted_predictions = []
+    for pred in [p for p in predictions if isinstance(p, dict)][:topk]:
+        confidence = coerce_confidence(pred.get("confidence", 0.0))
+        formatted_predictions.append(
+            {
+                "class_name": str(pred.get("pokemon", "Unknown")),
+                "confidence": f"{confidence:.4f}",
+                "percentage": f"{confidence * 100:.2f}%",
+            }
+        )
+    return formatted_predictions
 
 
 def predict_with_openrouter(image_data_base64, mime_type="image/jpeg", topk=5):
@@ -101,6 +146,9 @@ Important:
                 )
 
             response_text = result["choices"][0]["message"]["content"]
+            if not isinstance(response_text, str):
+                print(f"OpenRouter returned non-text content: {response_text!r}")
+                return parse_error_fallback()
 
             # Parse the JSON response
             try:
@@ -115,32 +163,18 @@ Important:
                     response_text = response_text[json_start:json_end].strip()
 
                 data = json.loads(response_text)
-                predictions = data.get("predictions", [])
-
-                # Format predictions
-                formatted_predictions = []
-                for pred in predictions[:topk]:
-                    formatted_predictions.append(
-                        {
-                            "class_name": pred.get("pokemon", "Unknown"),
-                            "confidence": f"{pred.get('confidence', 0.0):.4f}",
-                            "percentage": f"{pred.get('confidence', 0.0) * 100:.2f}%",
-                        }
-                    )
-
-                return formatted_predictions
-
             except json.JSONDecodeError as e:
-                # If parsing fails, return a fallback response
                 print(f"Failed to parse OpenRouter response: {e}")
                 print(f"Raw response: {response_text}")
-                return [
-                    {
-                        "class_name": "Parsing Error - See Console",
-                        "confidence": "0.0000",
-                        "percentage": "0.00%",
-                    }
-                ]
+                return parse_error_fallback()
+
+            formatted_predictions = format_predictions(data, topk)
+            if not formatted_predictions:
+                print("OpenRouter response has no usable predictions")
+                print(f"Raw response: {response_text}")
+                return parse_error_fallback()
+
+            return formatted_predictions
 
         except requests.exceptions.Timeout:
             if attempt < max_retries - 1:
