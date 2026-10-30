@@ -6,11 +6,12 @@ pre-trained ConvNeXt model.
 """
 
 import click
+
 from lib.detector_core import (
-    load_class_names,
-    load_model,
     get_device,
     get_transform,
+    load_class_names,
+    load_model,
     predict_image,
 )
 

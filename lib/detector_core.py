@@ -5,13 +5,12 @@ This module contains shared logic for loading models and making predictions,
 used by both the CLI tool and web application.
 """
 
-import numpy as np
-import torch
 import json
+
 import timm
-from torchvision import transforms
+import torch
 from PIL import Image
-import os
+from torchvision import transforms
 
 
 def load_class_names(path):
