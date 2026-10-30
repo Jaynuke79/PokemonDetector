@@ -4,6 +4,7 @@ Vercel serverless function for Pokemon detection using OpenRouter API.
 This is the backend API that handles image uploads and predictions.
 """
 
+import base64
 import json
 import math
 import os
@@ -18,6 +19,16 @@ app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 
+ALLOWED_IMAGE_MIME_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/webp"}
+)
+
+# All attempts must finish within maxDuration in vercel.json.
+OPENROUTER_CONNECT_TIMEOUT_SECONDS = 3
+OPENROUTER_READ_TIMEOUT_SECONDS = 25
+OPENROUTER_MAX_ATTEMPTS = 2
+OPENROUTER_RETRY_DELAY_SECONDS = 1
+
 
 def parse_error_fallback():
     return [
@@ -27,6 +38,13 @@ def parse_error_fallback():
             "percentage": "0.00%",
         }
     ]
+
+
+def is_valid_base64(value):
+    try:
+        return bool(base64.b64decode(value, validate=True))
+    except ValueError:
+        return False
 
 
 def coerce_confidence(value):
@@ -99,10 +117,7 @@ Important:
     # Call OpenRouter API with retry logic
     import time
 
-    max_retries = 2
-    retry_delay = 1
-
-    for attempt in range(max_retries):
+    for attempt in range(OPENROUTER_MAX_ATTEMPTS):
         try:
             response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -131,7 +146,10 @@ Important:
                         }
                     ],
                 },
-                timeout=25,  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
+                timeout=(
+                    OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+                    OPENROUTER_READ_TIMEOUT_SECONDS,
+                ),
             )
 
             # Process the response immediately after successful request
@@ -177,25 +195,25 @@ Important:
             return formatted_predictions
 
         except requests.exceptions.Timeout:
-            if attempt < max_retries - 1:
+            if attempt < OPENROUTER_MAX_ATTEMPTS - 1:
                 print(f"Timeout on attempt {attempt + 1}, retrying...")
-                time.sleep(retry_delay)
+                time.sleep(OPENROUTER_RETRY_DELAY_SECONDS)
                 continue
             else:
                 # Final attempt failed - raise helpful error
                 raise ValueError(
-                    f"OpenRouter API timed out after {max_retries} attempts. "
-                    f"The model '{OPENROUTER_MODEL}' may be too slow for Vercel's free tier (10s limit). "
-                    f"Try: 1) A faster model like 'anthropic/claude-3-haiku', "
-                    f"2) Upgrade to Vercel Pro (60s timeout), or "
-                    f"3) Use a smaller image."
+                    f"OpenRouter API timed out after {OPENROUTER_MAX_ATTEMPTS} attempts. "
+                    f"The model '{OPENROUTER_MODEL}' did not respond within "
+                    f"{OPENROUTER_READ_TIMEOUT_SECONDS}s per attempt. "
+                    "Try a faster model like 'anthropic/claude-3-haiku' "
+                    "or a smaller image."
                 )
 
         except requests.exceptions.RequestException as e:
             # Other request errors (connection, HTTP errors, etc.)
             print(f"OpenRouter API error on attempt {attempt + 1}: {e}")
-            if attempt < max_retries - 1:
-                time.sleep(retry_delay)
+            if attempt < OPENROUTER_MAX_ATTEMPTS - 1:
+                time.sleep(OPENROUTER_RETRY_DELAY_SECONDS)
                 continue
             else:
                 raise
@@ -241,18 +259,26 @@ def predict():
             return jsonify({"error": "No image data provided"}), 400
 
         # Extract base64 image data
-        image_data = data["image"]
+        image_data = data["image"].strip()
 
         # Handle data URL format (data:image/png;base64,...)
-        if image_data.startswith("data:"):
+        if image_data[:5].lower() == "data:":
             # Extract MIME type and base64 data
-            header, encoded = image_data.split(",", 1)
-            mime_type = header.split(":")[1].split(";")[0]
+            header, separator, encoded = image_data.partition(",")
+            mime_type = header.split(":")[1].split(";")[0].strip().lower()
+            if not separator or mime_type not in ALLOWED_IMAGE_MIME_TYPES:
+                allowed_types = ", ".join(sorted(ALLOWED_IMAGE_MIME_TYPES))
+                return jsonify(
+                    {"error": f"Unsupported image type. Allowed: {allowed_types}"}
+                ), 400
             image_base64 = encoded
         else:
             # Assume it's just base64 data
             mime_type = "image/jpeg"
             image_base64 = image_data
+
+        if not is_valid_base64(image_base64):
+            return jsonify({"error": "Image data is not valid base64"}), 400
 
         # Get predictions from OpenRouter
         predictions = predict_with_openrouter(image_base64, mime_type, topk=5)
