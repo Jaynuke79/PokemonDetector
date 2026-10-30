@@ -107,8 +107,10 @@ def index():
 
 @app.route("/health")
 def health():
-    """Health check endpoint for monitoring."""
-    return jsonify({"status": "healthy", "model_loaded": model is not None})
+    """Health check endpoint for monitoring; 503 until the model is loaded."""
+    if model is None:
+        return jsonify({"status": "unhealthy", "model_loaded": False}), 503
+    return jsonify({"status": "healthy", "model_loaded": True})
 
 
 @app.route("/predict", methods=["POST"])
