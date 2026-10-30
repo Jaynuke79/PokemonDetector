@@ -111,7 +111,7 @@ python index.py
 
 ### API Timeout
 
-**Error:** `OpenRouter API timed out after 2 attempts`, or a 504 `FUNCTION_INVOCATION_TIMEOUT` from Vercel
+**Error:** `The model took too long to respond. Try a smaller image.`, or a 504 `FUNCTION_INVOCATION_TIMEOUT` from Vercel. The Vercel function logs have the model and limits
 
 **Cause:** OpenRouter taking too long. Each attempt allows 3s to connect and 25s between bytes of the response, which normally ends a request within 57s. `maxDuration` in `vercel.json` (60s) is the hard cap: Vercel ends anything still running at that point with the 504.
 
