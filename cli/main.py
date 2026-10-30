@@ -8,6 +8,7 @@ pre-trained ConvNeXt model.
 import click
 
 from lib.detector_core import (
+    default_models_dir,
     get_device,
     get_transform,
     load_class_names,
@@ -16,6 +17,10 @@ from lib.detector_core import (
 )
 
 EXISTING_FILE = click.Path(exists=True, dir_okay=False)
+
+
+def _default_model_file(filename):
+    return lambda: str(default_models_dir() / filename)
 
 
 @click.command()
@@ -29,13 +34,13 @@ EXISTING_FILE = click.Path(exists=True, dir_okay=False)
 @click.option("--model", default="convnext_base", help="Model architecture to use.")
 @click.option(
     "--weights",
-    default="models/best_model_fold1.pth",
+    default=_default_model_file("best_model_fold1.pth"),
     type=EXISTING_FILE,
     help="Path to model weights file.",
 )
 @click.option(
     "--class-names-path",
-    default="models/class_names.json",
+    default=_default_model_file("class_names.json"),
     type=EXISTING_FILE,
     help="Path to class names JSON file.",
 )
