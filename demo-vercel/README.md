@@ -251,11 +251,12 @@ vercel env add OPENROUTER_API_KEY
 ```json
 {
   "routes": [
-    {"src": "/api/(.*)", "dest": "api/index.py"},
-    {"src": "/(.*)", "dest": "public/$1"}
+    {"src": "/api/health", "dest": "/api/index.py"},
+    {"src": "/api/predict", "dest": "/api/index.py"}
   ]
 }
 ```
+Files in `public/` are served from the site root without a route.
 
 ### Deployment fails
 

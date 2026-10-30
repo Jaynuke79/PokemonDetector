@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-API_PATH = Path(__file__).resolve().parents[1] / "demo-vercel" / "api" / "index.py"
+DEMO_DIR = Path(__file__).resolve().parents[1] / "demo-vercel"
+API_PATH = DEMO_DIR / "api" / "index.py"
+VALID_REPLY = json.dumps({"predictions": [{"pokemon": "Pikachu", "confidence": 0.9}]})
 IMAGE_PAYLOAD = {"image": "data:image/png;base64,AAAA"}
 PARSE_ERROR = [
     {
@@ -180,3 +182,128 @@ def test_backends_format_predictions_identically(
         "demo-vercel/api/index.py. The two copies are kept on purpose: apply the "
         "same edit to both."
     )
+
+
+@pytest.fixture
+def post_image(vercel_api, monkeypatch):
+    forwarded_image_urls = []
+
+    def fake_post(*_args, **kwargs):
+        content = kwargs["json"]["messages"][0]["content"]
+        forwarded_image_urls.append(content[1]["image_url"]["url"])
+        return FakeResponse(VALID_REPLY)
+
+    monkeypatch.setattr(vercel_api.requests, "post", fake_post)
+
+    def post(image):
+        response = vercel_api.app.test_client().post(
+            "/api/predict", json={"image": image}
+        )
+        return response, forwarded_image_urls
+
+    return post
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "data:text/plain;base64,AAAA",
+        "data:application/pdf;base64,AAAA",
+        "data:text/html,<b>hi</b>",
+        "data:image/svg+xml;base64,AAAA",
+        "data:image/bmp;base64,AAAA",
+        "data:;base64,AAAA",
+        "data:image/png;base64",
+        "DATA:text/plain;base64,AAAA",
+        "Data:application/pdf;base64,AAAA",
+        " data:text/plain;base64,AAAA",
+    ],
+)
+def test_disallowed_image_type_is_rejected_before_calling_upstream(post_image, image):
+    response, forwarded_image_urls = post_image(image)
+
+    assert response.status_code == 400
+    assert "Unsupported image type" in response.get_json()["error"]
+    assert forwarded_image_urls == []
+
+
+@pytest.mark.parametrize(
+    ("image", "forwarded"),
+    [
+        ("data:image/png;base64,AAAA", "data:image/png;base64,AAAA"),
+        ("data:image/jpeg;base64,AAAA", "data:image/jpeg;base64,AAAA"),
+        ("data:image/gif;base64,AAAA", "data:image/gif;base64,AAAA"),
+        ("data:image/webp;base64,AAAA", "data:image/webp;base64,AAAA"),
+        ("data:IMAGE/PNG;base64,AAAA", "data:image/png;base64,AAAA"),
+        ("DATA:image/png;base64,AAAA", "data:image/png;base64,AAAA"),
+        (" data:image/png;base64,AAAA\n", "data:image/png;base64,AAAA"),
+        ("AAAA", "data:image/jpeg;base64,AAAA"),
+    ],
+)
+def test_allowed_image_type_is_forwarded(post_image, image, forwarded):
+    response, forwarded_image_urls = post_image(image)
+
+    assert response.status_code == 200
+    assert forwarded_image_urls == [forwarded]
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "plain text not base64",
+        "",
+        "   ",
+        "AAA",
+        "pikachu\u20ac",
+        "data:image/png,not base64 <b>",
+        "data:image/png;base64,",
+        "data:image/png;base64,not base64",
+    ],
+)
+def test_invalid_base64_is_rejected_before_calling_upstream(post_image, image):
+    response, forwarded_image_urls = post_image(image)
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Image data is not valid base64"
+    assert forwarded_image_urls == []
+
+
+@pytest.fixture
+def timed_out_request(vercel_api, monkeypatch):
+    upstream_timeouts = []
+    sleeps = []
+
+    def fake_post(*_args, **kwargs):
+        upstream_timeouts.append(kwargs["timeout"])
+        raise vercel_api.requests.exceptions.Timeout
+
+    monkeypatch.setattr(vercel_api.requests, "post", fake_post)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+    return response, upstream_timeouts, sleeps
+
+
+def test_worst_case_upstream_time_fits_function_duration(timed_out_request):
+    _, upstream_timeouts, sleeps = timed_out_request
+    config = json.loads((DEMO_DIR / "vercel.json").read_text())
+    max_duration = config["functions"]["api/index.py"]["maxDuration"]
+
+    connect_and_read_seconds = sum(sum(timeout) for timeout in upstream_timeouts)
+
+    assert connect_and_read_seconds + sum(sleeps) < max_duration
+
+
+def test_timeout_error_describes_the_configured_limits(timed_out_request):
+    response, upstream_timeouts, _ = timed_out_request
+    error = response.get_json()["error"]
+
+    assert f"after {len(upstream_timeouts)} attempts" in error
+    assert f"{upstream_timeouts[0][1]}s per attempt" in error
+    assert "10s limit" not in error
+    assert "Vercel Pro" not in error
+
+
+def test_vercel_config_does_not_combine_builds_with_functions():
+    config = json.loads((DEMO_DIR / "vercel.json").read_text())
+
+    assert "builds" not in config

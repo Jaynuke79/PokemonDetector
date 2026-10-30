@@ -111,13 +111,13 @@ python index.py
 
 ### API Timeout
 
-**Error:** Function timed out
+**Error:** `OpenRouter API timed out after 2 attempts`, or a 504 `FUNCTION_INVOCATION_TIMEOUT` from Vercel
 
-**Cause:** OpenRouter API taking too long (>10 seconds on Hobby tier)
+**Cause:** OpenRouter taking too long. Each attempt allows 3s to connect and 25s between bytes of the response, which normally ends a request within 57s. `maxDuration` in `vercel.json` (60s) is the hard cap: Vercel ends anything still running at that point with the 504.
 
 **Solutions:**
 
-**1. Upgrade to Vercel Pro** ($20/month) - 60s timeout
+**1. Use a smaller image**
 
 **2. Use faster model:**
 Edit `vercel.json` or environment variable:
@@ -129,11 +129,8 @@ Edit `vercel.json` or environment variable:
 }
 ```
 
-**3. Reduce timeout on OpenRouter side:**
-Edit `api/index.py` line ~76:
-```python
-timeout=25  # Reduce to 8 for Hobby tier
-```
+**3. Change the limits:**
+Edit the `OPENROUTER_*` constants at the top of `api/index.py`, and keep their total under `maxDuration` in `vercel.json`. `maxDuration` can't exceed your plan's limit; see [Vercel's function limits](https://vercel.com/docs/functions/limitations#max-duration).
 
 ---
 
