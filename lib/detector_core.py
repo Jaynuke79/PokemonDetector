@@ -37,17 +37,13 @@ def load_model(model_name, num_classes, weight_path, device):
         device: PyTorch device (cpu or cuda)
 
     Returns:
-        Loaded model in eval mode, or None if loading failed
+        Loaded model in eval mode
     """
-    try:
-        model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
-        model.load_state_dict(torch.load(weight_path, map_location=device))
-        model.to(device)
-        model.eval()
-        return model
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None
+    model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
+    model.load_state_dict(torch.load(weight_path, map_location=device))
+    model.to(device)
+    model.eval()
+    return model
 
 
 def get_device():
