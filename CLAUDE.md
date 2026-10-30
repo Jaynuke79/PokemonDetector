@@ -153,7 +153,7 @@ docker compose down
 - **Entry Point:** `poke` CLI defined in `pyproject.toml` → `cli.main:cli`
 - **Packages:** `cli`, `webapp`, `lib` all defined in setuptools
 - **No Duplicate Code:** All detection logic is in `lib/`, shared by both outputs
-- **No Test Suite:** Project currently has no automated tests
+- **Tests:** `uv sync --extra test`, then `.venv/bin/pytest`. Tests never load the real model weights.
 - **Dev Dependencies:** Optional (jupyter, ipykernel, jupyterlab) must be added manually to pyproject.toml
 
 ## Common Development Tasks
