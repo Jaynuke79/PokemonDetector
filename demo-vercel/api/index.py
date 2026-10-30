@@ -30,9 +30,15 @@ OPENROUTER_READ_TIMEOUT_SECONDS = 25
 OPENROUTER_MAX_ATTEMPTS = 2
 OPENROUTER_RETRY_DELAY_SECONDS = 1
 
-# https://openrouter.ai/docs/api-reference/limits documents this source on both
-# 402 and 403. Other sources on those statuses are not this key's cap.
-OPENROUTER_KEY_LIMIT_SOURCE = "openrouter_key_limit"
+# Configured spending caps, per https://openrouter.ai/docs/api-reference/limits.
+# Credits and in-flight budget share these statuses but are not caps.
+OPENROUTER_SPENDING_CAP_SOURCES = frozenset(
+    {
+        "openrouter_key_limit",
+        "openrouter_guardrail_budget",
+        "openrouter_workspace_budget",
+    }
+)
 OPENROUTER_LIMIT_STATUS_CODES = frozenset({402, 403})
 
 
@@ -40,11 +46,11 @@ class OpenRouterTimeoutError(Exception):
     pass
 
 
-class OpenRouterKeyLimitError(Exception):
+class OpenRouterSpendingCapError(Exception):
     pass
 
 
-def is_key_limit_response(response):
+def is_spending_cap_response(response):
     if response.status_code not in OPENROUTER_LIMIT_STATUS_CODES:
         return False
     try:
@@ -55,7 +61,7 @@ def is_key_limit_response(response):
     metadata = error.get("metadata") if isinstance(error, dict) else None
     return (
         isinstance(metadata, dict)
-        and metadata.get("limit_source") == OPENROUTER_KEY_LIMIT_SOURCE
+        and metadata.get("limit_source") in OPENROUTER_SPENDING_CAP_SOURCES
     )
 
 
@@ -181,8 +187,8 @@ Important:
                 ),
             )
 
-            if is_key_limit_response(response):
-                raise OpenRouterKeyLimitError(response.text)
+            if is_spending_cap_response(response):
+                raise OpenRouterSpendingCapError(response.text)
 
             # Process the response immediately after successful request
             response.raise_for_status()
@@ -318,8 +324,8 @@ def predict():
     except HTTPException as e:
         return jsonify({"error": e.name}), e.code
 
-    except OpenRouterKeyLimitError:
-        app.logger.exception("OpenRouter key limit reached")
+    except OpenRouterSpendingCapError:
+        app.logger.exception("OpenRouter spending cap reached")
         return jsonify(
             {"error": "This demo has reached its daily limit. Please try again later."}
         ), 503

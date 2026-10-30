@@ -424,10 +424,18 @@ def predict_with_upstream_status(vercel_api, monkeypatch):
 
 
 @pytest.mark.parametrize("status_code", [402, 403])
-def test_key_limit_returns_fixed_message_without_retrying(
-    predict_with_upstream_status, caplog, status_code
+@pytest.mark.parametrize(
+    "limit_source",
+    [
+        "openrouter_key_limit",
+        "openrouter_guardrail_budget",
+        "openrouter_workspace_budget",
+    ],
+)
+def test_spending_cap_returns_fixed_message_without_retrying(
+    predict_with_upstream_status, caplog, limit_source, status_code
 ):
-    body = openrouter_error("openrouter_key_limit", status_code)
+    body = openrouter_error(limit_source, status_code)
 
     response, upstream_calls = predict_with_upstream_status(
         status_code, json.dumps(body).encode()
@@ -445,8 +453,6 @@ def test_key_limit_returns_fixed_message_without_retrying(
         (402, json.dumps(openrouter_error("openrouter_credits")).encode()),
         (402, json.dumps(openrouter_error("openrouter_in_flight_budget")).encode()),
         (402, json.dumps(openrouter_error()).encode()),
-        (403, json.dumps(openrouter_error("openrouter_guardrail_budget")).encode()),
-        (403, json.dumps(openrouter_error("openrouter_workspace_budget")).encode()),
         (403, json.dumps(openrouter_error()).encode()),
         (429, json.dumps(openrouter_error("openrouter_key_limit")).encode()),
         (402, b"not json"),
@@ -458,8 +464,6 @@ def test_key_limit_returns_fixed_message_without_retrying(
         "credits",
         "in-flight-budget",
         "402-no-source",
-        "guardrail-budget",
-        "workspace-budget",
         "403-no-source",
         "key-source-on-429",
         "not-json",

@@ -113,9 +113,9 @@ python index.py
 
 **Error:** `This demo has reached its daily limit. Please try again later.` (HTTP 503)
 
-**Cause:** OpenRouter rejected the request because the API key's credit limit is spent (`limit_source: openrouter_key_limit`). Other credit and budget errors show `Prediction failed` instead.
+**Cause:** OpenRouter rejected the request because a configured spending cap is spent: the key's credit limit, a guardrail budget or a workspace budget (`limit_source` is `openrouter_key_limit`, `openrouter_guardrail_budget` or `openrouter_workspace_budget`). Running out of account credits shows `Prediction failed` instead.
 
-**Solutions:** Wait for the key's limit to reset, or raise it in OpenRouter. The Vercel function logs have OpenRouter's full response.
+**Solutions:** Wait for the cap to reset, or raise it in OpenRouter. The Vercel function logs have OpenRouter's full response, including which cap fired. The message says "daily" whichever cap fired, so check its reset interval if it doesn't clear overnight.
 
 ---
 
