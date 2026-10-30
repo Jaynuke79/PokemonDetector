@@ -4,11 +4,8 @@ Flask web application for Pokemon detection.
 Provides a web interface for uploading images and getting Pokemon predictions.
 """
 
-import contextlib
-import os
-import tempfile
-
 from flask import Flask, jsonify, render_template, request
+from PIL import Image
 
 # Import core detection functions
 from lib.detector_core import (
@@ -22,6 +19,13 @@ from lib.detector_core import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
+
+UPLOAD_IMAGE_FORMATS = ("PNG", "JPEG", "GIF", "BMP")
+# PIL only warns between 89M and 179M pixels, and a solid-color PNG of that size
+# fits well inside MAX_CONTENT_LENGTH yet decodes to hundreds of MB.
+MAX_UPLOAD_PIXELS = 50_000_000
+IMAGE_TOO_LARGE_RESPONSE = {"error": "Image dimensions are too large"}, 413
+UNREADABLE_IMAGE_RESPONSE = {"error": "File could not be read as an image"}, 400
 
 # Global variables for model components
 class_names = None
@@ -117,39 +121,42 @@ def predict():
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400
 
-    if file and allowed_file(file.filename):
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-            file.save(tmp_file.name)
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type"}), 400
 
-            try:
-                # Real model prediction
-                results = predict_image(
-                    tmp_file.name, model, transform, device, class_names, topk=5
-                )
+    try:
+        with Image.open(file.stream, formats=UPLOAD_IMAGE_FORMATS) as image:
+            pixel_count = image.width * image.height
+    except Image.DecompressionBombError:
+        return IMAGE_TOO_LARGE_RESPONSE
+    except OSError:
+        return UNREADABLE_IMAGE_RESPONSE
+    if pixel_count > MAX_UPLOAD_PIXELS:
+        return IMAGE_TOO_LARGE_RESPONSE
+    file.stream.seek(0)
 
-                # Format results
-                predictions = []
-                for idx, class_name, confidence in results:
-                    predictions.append(
-                        {
-                            "class_name": class_name,
-                            "confidence": f"{confidence:.4f}",
-                            "percentage": f"{confidence * 100:.2f}%",
-                        }
-                    )
+    try:
+        results = predict_image(
+            file.stream, model, transform, device, class_names, topk=5
+        )
+    except OSError:
+        app.logger.warning("Could not decode upload", exc_info=True)
+        return UNREADABLE_IMAGE_RESPONSE
+    except Exception:
+        app.logger.exception("Prediction failed")
+        return jsonify({"error": "Prediction failed"}), 500
 
-                return jsonify({"predictions": predictions})
+    predictions = []
+    for idx, class_name, confidence in results:
+        predictions.append(
+            {
+                "class_name": class_name,
+                "confidence": f"{confidence:.4f}",
+                "percentage": f"{confidence * 100:.2f}%",
+            }
+        )
 
-            except Exception as e:  # noqa: BLE001
-                print(f"Prediction error: {e!s}")
-                return jsonify({"error": f"Prediction failed: {e!s}"}), 500
-
-            finally:
-                with contextlib.suppress(OSError):
-                    os.unlink(tmp_file.name)
-
-    return jsonify({"error": "Invalid file type"}), 400
+    return jsonify({"predictions": predictions})
 
 
 def allowed_file(filename):
