@@ -292,10 +292,16 @@
             predictions.forEach((prediction, index) => {
                 const resultItem = document.createElement('div');
                 resultItem.className = 'result-item';
-                resultItem.innerHTML = `
-                    <div class="pokemon-name">#${index + 1} ${prediction.class_name}</div>
-                    <div class="confidence">Confidence: ${prediction.percentage}</div>
-                `;
+
+                const pokemonName = document.createElement('div');
+                pokemonName.className = 'pokemon-name';
+                pokemonName.textContent = `#${index + 1} ${prediction.class_name}`;
+
+                const confidence = document.createElement('div');
+                confidence.className = 'confidence';
+                confidence.textContent = `Confidence: ${prediction.percentage}`;
+
+                resultItem.append(pokemonName, confidence);
                 predictionsList.appendChild(resultItem);
             });
 
