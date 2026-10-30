@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import json
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 API_PATH = Path(__file__).resolve().parents[1] / "demo-vercel" / "api" / "index.py"
 IMAGE_PAYLOAD = {"image": "data:image/png;base64,AAAA"}
@@ -148,3 +150,33 @@ def test_non_text_content_returns_parse_error_fallback(predict_with_content, con
 
     assert response.status_code == 200
     assert response.get_json()["predictions"] == PARSE_ERROR
+
+
+@pytest.mark.parametrize("confidence", [0.91234, 0.00005, 1.0, 0.0])
+def test_backends_format_predictions_identically(
+    vercel_api, webapp_module, client, monkeypatch, confidence
+):
+    upload = io.BytesIO()
+    Image.new("RGB", (8, 8)).save(upload, format="PNG")
+    upload.seek(0)
+    monkeypatch.setattr(webapp_module, "model", object())
+    monkeypatch.setattr(
+        webapp_module,
+        "predict_image",
+        lambda *_args, **_kwargs: [(0, "Gengar", confidence)],
+    )
+
+    webapp_predictions = client.post(
+        "/predict",
+        data={"file": (upload, "image.png")},
+        content_type="multipart/form-data",
+    ).get_json()["predictions"]
+    demo_predictions = vercel_api.format_predictions(
+        {"predictions": [{"pokemon": "Gengar", "confidence": confidence}]}, topk=1
+    )
+
+    assert webapp_predictions == demo_predictions, (
+        "Prediction formatting differs between webapp/app.py and "
+        "demo-vercel/api/index.py. The two copies are kept on purpose: apply the "
+        "same edit to both."
+    )
