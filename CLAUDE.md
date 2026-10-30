@@ -62,7 +62,7 @@ uv sync
 uv run poke path/to/image.jpg
 
 # With custom options
-uv run poke path/to/image.jpg --topk 3 --verbose true
+uv run poke path/to/image.jpg --topk 3 --verbose
 
 # Custom model weights
 uv run poke path/to/image.jpg --weights models/best_model_fold1.pth --class-names-path models/class_names.json
