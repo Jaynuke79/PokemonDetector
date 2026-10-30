@@ -4,22 +4,66 @@ Vercel serverless function for Pokemon detection using OpenRouter API.
 This is the backend API that handles image uploads and predictions.
 """
 
-from flask import Flask, request, jsonify
-import os
-import base64
-import requests
-import tempfile
 import json
+import math
+import os
+
+import requests
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
+app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 
 # OpenRouter configuration
-OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'anthropic/claude-3.5-sonnet')
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 
 
-def predict_with_openrouter(image_data_base64, mime_type='image/jpeg', topk=5):
+def parse_error_fallback():
+    return [
+        {
+            "class_name": "Parsing Error - See Console",
+            "confidence": "0.0000",
+            "percentage": "0.00%",
+        }
+    ]
+
+
+def coerce_confidence(value):
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return confidence if math.isfinite(confidence) else 0.0
+
+
+def format_predictions(data, topk):
+    """
+    Convert the model's parsed JSON into display-ready predictions.
+
+    Returns an empty list when the reply does not have the expected shape, so
+    callers can treat it the same as unparseable JSON.
+    """
+    if not isinstance(data, dict):
+        return []
+    predictions = data.get("predictions")
+    if not isinstance(predictions, list):
+        return []
+
+    formatted_predictions = []
+    for pred in [p for p in predictions if isinstance(p, dict)][:topk]:
+        confidence = coerce_confidence(pred.get("confidence", 0.0))
+        formatted_predictions.append(
+            {
+                "class_name": str(pred.get("pokemon", "Unknown")),
+                "confidence": f"{confidence:.4f}",
+                "percentage": f"{confidence * 100:.2f}%",
+            }
+        )
+    return formatted_predictions
+
+
+def predict_with_openrouter(image_data_base64, mime_type="image/jpeg", topk=5):
     """
     Use OpenRouter API to identify Pokemon in an image.
 
@@ -54,6 +98,7 @@ Important:
 
     # Call OpenRouter API with retry logic
     import time
+
     max_retries = 2
     retry_delay = 1
 
@@ -64,8 +109,10 @@ Important:
                 headers={
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                     "Content-Type": "application/json",
-                    "HTTP-Referer": os.environ.get('VERCEL_URL', 'https://pokemon-detector.vercel.app'),
-                    "X-Title": "Pokemon Detector Demo"
+                    "HTTP-Referer": os.environ.get(
+                        "VERCEL_URL", "https://pokemon-detector.vercel.app"
+                    ),
+                    "X-Title": "Pokemon Detector Demo",
                 },
                 json={
                     "model": OPENROUTER_MODEL,
@@ -73,21 +120,18 @@ Important:
                         {
                             "role": "user",
                             "content": [
-                                {
-                                    "type": "text",
-                                    "text": prompt
-                                },
+                                {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
                                     "image_url": {
                                         "url": f"data:{mime_type};base64,{image_data_base64}"
-                                    }
-                                }
-                            ]
+                                    },
+                                },
+                            ],
                         }
-                    ]
+                    ],
                 },
-                timeout=25  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
+                timeout=25,  # Try longer timeout (works on Vercel Pro, fails gracefully on Hobby)
             )
 
             # Process the response immediately after successful request
@@ -95,47 +139,42 @@ Important:
             result = response.json()
 
             # Extract the response text
-            if 'choices' not in result or len(result['choices']) == 0:
-                openrouter_error = result.get('error', result)
-                raise ValueError(f"No choices in OpenRouter response: {openrouter_error}")
+            if "choices" not in result or len(result["choices"]) == 0:
+                openrouter_error = result.get("error", result)
+                raise ValueError(
+                    f"No choices in OpenRouter response: {openrouter_error}"
+                )
 
-            response_text = result['choices'][0]['message']['content']
+            response_text = result["choices"][0]["message"]["content"]
+            if not isinstance(response_text, str):
+                print(f"OpenRouter returned non-text content: {response_text!r}")
+                return parse_error_fallback()
 
             # Parse the JSON response
             try:
                 # Sometimes the model wraps JSON in markdown code blocks
-                if '```json' in response_text:
-                    json_start = response_text.find('```json') + 7
-                    json_end = response_text.find('```', json_start)
+                if "```json" in response_text:
+                    json_start = response_text.find("```json") + 7
+                    json_end = response_text.find("```", json_start)
                     response_text = response_text[json_start:json_end].strip()
-                elif '```' in response_text:
-                    json_start = response_text.find('```') + 3
-                    json_end = response_text.find('```', json_start)
+                elif "```" in response_text:
+                    json_start = response_text.find("```") + 3
+                    json_end = response_text.find("```", json_start)
                     response_text = response_text[json_start:json_end].strip()
 
                 data = json.loads(response_text)
-                predictions = data.get('predictions', [])
-
-                # Format predictions
-                formatted_predictions = []
-                for pred in predictions[:topk]:
-                    formatted_predictions.append({
-                        'class_name': pred.get('pokemon', 'Unknown'),
-                        'confidence': f"{pred.get('confidence', 0.0):.4f}",
-                        'percentage': f"{pred.get('confidence', 0.0) * 100:.2f}%"
-                    })
-
-                return formatted_predictions
-
             except json.JSONDecodeError as e:
-                # If parsing fails, return a fallback response
                 print(f"Failed to parse OpenRouter response: {e}")
                 print(f"Raw response: {response_text}")
-                return [{
-                    'class_name': 'Parsing Error - See Console',
-                    'confidence': '0.0000',
-                    'percentage': '0.00%'
-                }]
+                return parse_error_fallback()
+
+            formatted_predictions = format_predictions(data, topk)
+            if not formatted_predictions:
+                print("OpenRouter response has no usable predictions")
+                print(f"Raw response: {response_text}")
+                return parse_error_fallback()
+
+            return formatted_predictions
 
         except requests.exceptions.Timeout:
             if attempt < max_retries - 1:
@@ -162,31 +201,28 @@ Important:
                 raise
 
 
-@app.route('/')
-@app.route('/api')
+@app.route("/")
+@app.route("/api")
 def root():
     """Root endpoint - confirms API is working."""
-    return jsonify({
-        'message': 'Pokemon Detector API is running',
-        'endpoints': {
-            'health': '/api/health',
-            'predict': '/api/predict (POST)'
+    return jsonify(
+        {
+            "message": "Pokemon Detector API is running",
+            "endpoints": {"health": "/api/health", "predict": "/api/predict (POST)"},
         }
-    })
+    )
 
 
-@app.route('/api/health', methods=['GET'])
+@app.route("/api/health", methods=["GET"])
 def health():
     """Health check endpoint."""
     api_key_set = OPENROUTER_API_KEY is not None and OPENROUTER_API_KEY != ""
-    return jsonify({
-        'status': 'healthy',
-        'api_configured': api_key_set,
-        'model': OPENROUTER_MODEL
-    })
+    return jsonify(
+        {"status": "healthy", "api_configured": api_key_set, "model": OPENROUTER_MODEL}
+    )
 
 
-@app.route('/api/predict', methods=['POST'])
+@app.route("/api/predict", methods=["POST"])
 def predict():
     """
     Handle prediction requests.
@@ -195,36 +231,36 @@ def predict():
     Returns JSON response with predictions.
     """
     if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured'}), 500
+        return jsonify({"error": "OpenRouter API key not configured"}), 500
 
     try:
         # Get JSON data
         data = request.get_json()
 
-        if not data or 'image' not in data:
-            return jsonify({'error': 'No image data provided'}), 400
+        if not data or "image" not in data:
+            return jsonify({"error": "No image data provided"}), 400
 
         # Extract base64 image data
-        image_data = data['image']
+        image_data = data["image"]
 
         # Handle data URL format (data:image/png;base64,...)
-        if image_data.startswith('data:'):
+        if image_data.startswith("data:"):
             # Extract MIME type and base64 data
-            header, encoded = image_data.split(',', 1)
-            mime_type = header.split(':')[1].split(';')[0]
+            header, encoded = image_data.split(",", 1)
+            mime_type = header.split(":")[1].split(";")[0]
             image_base64 = encoded
         else:
             # Assume it's just base64 data
-            mime_type = 'image/jpeg'
+            mime_type = "image/jpeg"
             image_base64 = image_data
 
         # Get predictions from OpenRouter
         predictions = predict_with_openrouter(image_base64, mime_type, topk=5)
-        return jsonify({'predictions': predictions})
+        return jsonify({"predictions": predictions})
 
-    except Exception as e:
-        print(f"Prediction error: {str(e)}")
-        return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
+    except Exception as e:  # noqa: BLE001
+        print(f"Prediction error: {e!s}")
+        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
 
 
 # Vercel needs the app to be exported
@@ -232,5 +268,5 @@ def predict():
 # No need for a wrapper function
 
 # For local testing
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -1532,6 +1532,7 @@ dev = [
 ]
 test = [
     { name = "pytest" },
+    { name = "requests" },
 ]
 
 [package.metadata]
@@ -1545,6 +1546,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyinstaller", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
+    { name = "requests", marker = "extra == 'test'", specifier = ">=2.31.0" },
     { name = "timm", specifier = ">=1.0.15" },
     { name = "torch", specifier = ">=2.7.1" },
     { name = "torchvision", specifier = ">=0.22.1" },

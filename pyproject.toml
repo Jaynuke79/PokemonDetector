@@ -24,6 +24,7 @@ dev = [ # Dev only dependencies
 ]
 test = [
     "pytest>=8",
+    "requests>=2.31.0",
 ]
 
 
