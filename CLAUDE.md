@@ -133,7 +133,7 @@ docker compose down
 - Templates in `webapp/templates/`, static assets in `webapp/static/`
 
 **Docker Deployment (`deployment/`):**
-- Dockerfile: Python 3.10-slim, installs from `requirements.txt`
+- Dockerfile: Python 3.11-slim, installs CPU-only torch and torchvision, then the rest from `requirements.txt`
 - Build context: parent directory (`..`)
 - Runs `webapp/app.py` as CMD
 - docker-compose.yml: Mounts `../models` as volume for model files
