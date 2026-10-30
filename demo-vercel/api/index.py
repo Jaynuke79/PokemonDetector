@@ -30,9 +30,33 @@ OPENROUTER_READ_TIMEOUT_SECONDS = 25
 OPENROUTER_MAX_ATTEMPTS = 2
 OPENROUTER_RETRY_DELAY_SECONDS = 1
 
+# https://openrouter.ai/docs/api-reference/limits documents this source on both
+# 402 and 403. Other sources on those statuses are not this key's cap.
+OPENROUTER_KEY_LIMIT_SOURCE = "openrouter_key_limit"
+OPENROUTER_LIMIT_STATUS_CODES = frozenset({402, 403})
+
 
 class OpenRouterTimeoutError(Exception):
     pass
+
+
+class OpenRouterKeyLimitError(Exception):
+    pass
+
+
+def is_key_limit_response(response):
+    if response.status_code not in OPENROUTER_LIMIT_STATUS_CODES:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    error = body.get("error") if isinstance(body, dict) else None
+    metadata = error.get("metadata") if isinstance(error, dict) else None
+    return (
+        isinstance(metadata, dict)
+        and metadata.get("limit_source") == OPENROUTER_KEY_LIMIT_SOURCE
+    )
 
 
 def parse_error_fallback():
@@ -156,6 +180,9 @@ Important:
                     OPENROUTER_READ_TIMEOUT_SECONDS,
                 ),
             )
+
+            if is_key_limit_response(response):
+                raise OpenRouterKeyLimitError(response.text)
 
             # Process the response immediately after successful request
             response.raise_for_status()
@@ -290,6 +317,12 @@ def predict():
 
     except HTTPException as e:
         return jsonify({"error": e.name}), e.code
+
+    except OpenRouterKeyLimitError:
+        app.logger.exception("OpenRouter key limit reached")
+        return jsonify(
+            {"error": "This demo has reached its daily limit. Please try again later."}
+        ), 503
 
     except OpenRouterTimeoutError:
         app.logger.exception("OpenRouter request timed out")

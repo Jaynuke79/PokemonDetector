@@ -18,6 +18,8 @@ PARSE_ERROR = [
 
 
 class FakeResponse:
+    status_code = 200
+
     def __init__(self, content):
         self._content = content
 
@@ -292,6 +294,8 @@ def raise_from_post(exception):
 
 def reply_with_envelope(envelope):
     class EnvelopeResponse:
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
@@ -388,3 +392,87 @@ def test_missing_api_key_message_stays_helpful(vercel_api, monkeypatch):
 
     assert response.status_code == 500
     assert response.get_json() == {"error": "OpenRouter API key not configured"}
+
+
+LIMIT_MESSAGE = "This demo has reached its daily limit. Please try again later."
+LIMIT_DETAIL = "$1.02 of $1.00 used; resets 2026-10-12T00:00:00.000Z"
+
+
+def openrouter_error(limit_source=None, code=402):
+    metadata = {"limit_source": limit_source} if limit_source else {}
+    return {"error": {"code": code, "message": LIMIT_DETAIL, "metadata": metadata}}
+
+
+@pytest.fixture
+def predict_with_upstream_status(vercel_api, monkeypatch):
+    upstream_calls = []
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+
+    def predict(status_code, content):
+        def fake_post(*_args, **_kwargs):
+            upstream_calls.append(1)
+            response = vercel_api.requests.Response()
+            response.status_code = status_code
+            response._content = content
+            return response
+
+        monkeypatch.setattr(vercel_api.requests, "post", fake_post)
+        response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+        return response, len(upstream_calls)
+
+    return predict
+
+
+@pytest.mark.parametrize("status_code", [402, 403])
+def test_key_limit_returns_fixed_message_without_retrying(
+    predict_with_upstream_status, caplog, status_code
+):
+    body = openrouter_error("openrouter_key_limit", status_code)
+
+    response, upstream_calls = predict_with_upstream_status(
+        status_code, json.dumps(body).encode()
+    )
+
+    assert response.status_code == 503
+    assert response.get_json() == {"error": LIMIT_MESSAGE}
+    assert upstream_calls == 1
+    assert LIMIT_DETAIL in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("status_code", "content"),
+    [
+        (402, json.dumps(openrouter_error("openrouter_credits")).encode()),
+        (402, json.dumps(openrouter_error("openrouter_in_flight_budget")).encode()),
+        (402, json.dumps(openrouter_error()).encode()),
+        (403, json.dumps(openrouter_error("openrouter_guardrail_budget")).encode()),
+        (403, json.dumps(openrouter_error("openrouter_workspace_budget")).encode()),
+        (403, json.dumps(openrouter_error()).encode()),
+        (429, json.dumps(openrouter_error("openrouter_key_limit")).encode()),
+        (402, b"not json"),
+        (402, b"[]"),
+        (402, b'{"error": "text"}'),
+        (402, b'{"error": {"metadata": "text"}}'),
+    ],
+    ids=[
+        "credits",
+        "in-flight-budget",
+        "402-no-source",
+        "guardrail-budget",
+        "workspace-budget",
+        "403-no-source",
+        "key-source-on-429",
+        "not-json",
+        "not-object",
+        "error-not-object",
+        "metadata-not-object",
+    ],
+)
+def test_other_upstream_errors_stay_generic_and_retry(
+    predict_with_upstream_status, status_code, content
+):
+    response, upstream_calls = predict_with_upstream_status(status_code, content)
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert upstream_calls == 2
