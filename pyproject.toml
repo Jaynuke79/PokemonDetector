@@ -22,6 +22,9 @@ dev = [ # Dev only dependencies
     "jupyterlab",
     "pyinstaller>=6.0.0",  # For building Windows executables
 ]
+test = [
+    "pytest>=8",
+]
 
 
 [project.scripts]
