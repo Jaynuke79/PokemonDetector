@@ -133,7 +133,7 @@ docker compose down
 - Templates in `webapp/templates/`, static assets in `webapp/static/`
 
 **Docker Deployment (`deployment/`):**
-- Dockerfile: Python 3.10-slim, installs from `requirements.txt`
+- Dockerfile: Python 3.11-slim, installs CPU-only torch and torchvision, then the rest from `requirements.txt`
 - Build context: parent directory (`..`)
 - Runs `webapp/app.py` as CMD
 - docker-compose.yml: Mounts `../models` as volume for model files
@@ -169,7 +169,7 @@ uv add package-name
 
 **Updating model location:**
 - Always use `models/` directory for model files
-- Both CLI and webapp check `models/` for weights and class names
+- Both CLI and webapp find weights and class names through `default_models_dir()`: `POKE_MODELS_DIR`, then the PyInstaller bundle, then `<project root>/models`. A `models/` in the working directory is not used
 - Docker mounts `../models` as volume
 
 **Making changes to core logic:**

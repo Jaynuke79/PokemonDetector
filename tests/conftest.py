@@ -25,13 +25,15 @@ def _torch_load_from_session_dir_only(f, *args, **kwargs):
     return _real_torch_load(f, *args, **kwargs)
 
 
-# webapp.app loads the model at import time from cwd-relative models/ paths, and
-# its blanket `except Exception` would swallow an ordinary error. pytest.fail
-# raises a BaseException, so loading weights from outside the session directory
-# fails the run, and the empty cwd keeps the import from finding real weights in
-# the first place.
+# webapp.app loads the model at import time from default_models_dir(), and its
+# blanket `except Exception` would swallow an ordinary error. pytest.fail raises
+# a BaseException, so loading weights from outside the session directory fails
+# the run, and the empty models directory keeps the import from finding real
+# weights in the first place.
 torch.load = _torch_load_from_session_dir_only
-os.chdir(_session_root)
+_empty_models_dir = _session_root / "empty-models"
+_empty_models_dir.mkdir()
+os.environ["POKE_MODELS_DIR"] = str(_empty_models_dir)
 
 
 class StubClassifier(nn.Module):
