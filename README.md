@@ -80,7 +80,7 @@ uv sync
 uv run poke path/to/image.jpg
 
 # Top 3 predictions with verbose output
-uv run poke path/to/image.jpg --topk 3 --verbose true
+uv run poke path/to/image.jpg --topk 3 --verbose
 
 # Custom model weights
 uv run poke path/to/image.jpg --weights models/best_model_fold1.pth --class-names-path models/class_names.json

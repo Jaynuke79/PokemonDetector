@@ -73,10 +73,6 @@ def initialize_model():
 
         # Load the model
         model = load_model("convnext_base", num_classes, model_path, device)
-        if model is None:
-            print("ERROR: Failed to load model")
-            return False
-
         transform = get_transform()
 
         print("Model initialized successfully!")

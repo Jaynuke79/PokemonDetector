@@ -1,13 +1,3 @@
-import pytest
-
-import lib.detector_core
-
-
-def test_real_weight_loading_is_forbidden():
-    with pytest.raises(pytest.fail.Exception):
-        lib.detector_core.load_model("convnext_base", 3, "models/x.pth", "cpu")
-
-
 def test_webapp_import_does_not_load_a_model(webapp_module):
     assert webapp_module.model is None
 

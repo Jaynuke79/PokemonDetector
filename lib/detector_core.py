@@ -5,13 +5,12 @@ This module contains shared logic for loading models and making predictions,
 used by both the CLI tool and web application.
 """
 
-import numpy as np
-import torch
 import json
+
 import timm
-from torchvision import transforms
+import torch
 from PIL import Image
-import os
+from torchvision import transforms
 
 
 def load_class_names(path):
@@ -38,17 +37,13 @@ def load_model(model_name, num_classes, weight_path, device):
         device: PyTorch device (cpu or cuda)
 
     Returns:
-        Loaded model in eval mode, or None if loading failed
+        Loaded model in eval mode
     """
-    try:
-        model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
-        model.load_state_dict(torch.load(weight_path, map_location=device))
-        model.to(device)
-        model.eval()
-        return model
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None
+    model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
+    model.load_state_dict(torch.load(weight_path, map_location=device))
+    model.to(device)
+    model.eval()
+    return model
 
 
 def get_device():
@@ -67,12 +62,13 @@ def get_transform():
     Returns:
         torchvision.transforms.Compose object with the required transformations
     """
-    return transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
-    ])
+    return transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
 
 
 def predict_image(img_path, model, transform, device, class_names, topk=2):
