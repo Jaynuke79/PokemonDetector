@@ -105,11 +105,15 @@ Upload an image through the web interface to get top 5 predictions.
 # Navigate to deployment directory
 cd deployment
 
-# Build and run with docker compose
+# Build and run the app behind nginx
 docker compose up --build
 
+# Access at http://localhost (port 80)
+
+# Or run only the app, without nginx
+docker compose -f docker-compose.yml -f docker-compose.direct.yml up --build pokemon-detector
+
 # Access at http://localhost:5000
-# Optional nginx reverse proxy at http://localhost:80
 
 # Stop services
 docker compose down

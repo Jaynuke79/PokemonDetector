@@ -34,6 +34,7 @@ pokemonDetector/
 ├── deployment/            # Docker Deployment Method
 │   ├── Dockerfile
 │   ├── docker-compose.yml
+│   ├── docker-compose.direct.yml
 │   └── nginx.config
 │
 ├── models/                # Model Files (not in version control)
@@ -81,17 +82,18 @@ python webapp/app.py
 # Navigate to deployment directory
 cd deployment
 
-# Build and run
+# Build and run the app behind nginx
 docker compose up --build
 
-# Run only app service (without nginx)
-docker compose up pokemon-detector
+# Access web app: http://localhost (port 80)
+
+# Run only the app, without nginx
+docker compose -f docker-compose.yml -f docker-compose.direct.yml up --build pokemon-detector
+
+# Access web app: http://localhost:5000 (loopback only)
 
 # Stop services
 docker compose down
-
-# Access web app: http://localhost:5000
-# Access nginx (if enabled): http://localhost:80
 ```
 
 ## Architecture
@@ -135,9 +137,9 @@ docker compose down
 **Docker Deployment (`deployment/`):**
 - Dockerfile: Python 3.11-slim, installs CPU-only torch and torchvision, then the rest from `requirements.txt`
 - Build context: parent directory (`..`)
-- Runs `webapp/app.py` as CMD
+- Runs `webapp.app:app` under gunicorn (1 worker, 4 threads) as CMD; `python webapp/app.py` is the local development server
 - docker-compose.yml: Mounts `../models` as volume for model files
-- Optional nginx service for reverse proxy
+- nginx is the only published entry point (port 80, no TLS); docker-compose.direct.yml publishes the app on `127.0.0.1:5000` instead
 - Health checks on Flask `/health` endpoint
 
 ### Model Details

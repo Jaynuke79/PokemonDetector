@@ -24,6 +24,8 @@ fsspec==2025.5.1
     # via
     #   huggingface-hub
     #   torch
+gunicorn==26.2.0
+    # via pokemondetector
 hf-xet==1.1.3 ; platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
     # via huggingface-hub
 huggingface-hub==0.33.0
