@@ -94,7 +94,7 @@ def predict_image(img_path, model, transform, device, class_names, topk=2):
     """Make predictions on an image.
 
     Args:
-        img_path: Path to the image file
+        img_path: Path to the image file, or a binary file-like object
         model: Loaded PyTorch model
         transform: Image transformation pipeline
         device: PyTorch device
