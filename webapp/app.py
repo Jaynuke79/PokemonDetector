@@ -12,6 +12,7 @@ from flask import Flask, jsonify, render_template, request
 
 # Import core detection functions
 from lib.detector_core import (
+    default_models_dir,
     get_device,
     get_transform,
     load_class_names,
@@ -38,37 +39,25 @@ def initialize_model():
     global class_names, model, transform, device
 
     try:
-        # Load class names - check both locations (Docker mount and local)
-        class_names_paths = ["models/class_names.json"]
-        class_names_path = None
-        for path in class_names_paths:
-            if os.path.exists(path):
-                class_names_path = path
-                break
+        models_dir = default_models_dir()
 
-        if not class_names_path:
-            print(f"ERROR: Class names file not found. Checked: {class_names_paths}")
+        class_names_path = models_dir / "class_names.json"
+        if not class_names_path.exists():
+            print(f"ERROR: Class names file not found: {class_names_path}")
             return False
 
         class_names = load_class_names(class_names_path)
         num_classes = len(class_names)
         device = get_device()
 
-        # Check if model file exists - check both locations (Docker mount and local)
-        model_paths = ["models/best_model_fold1.pth"]
-        model_path = None
-        for path in model_paths:
-            if os.path.exists(path):
-                model_path = path
-                break
-
-        if not model_path:
-            print(f"ERROR: Model file not found. Checked: {model_paths}")
+        model_path = models_dir / "best_model_fold1.pth"
+        if not model_path.exists():
+            print(f"ERROR: Model file not found: {model_path}")
             print("Please download the model file from:")
             print(
                 "https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing"
             )
-            print("And place it in the models/ directory")
+            print(f"And place it in {models_dir}")
             return False
 
         # Load the model
@@ -91,8 +80,8 @@ if not initialize_model():
     print("ERROR: Model initialization failed.")
     print("The app will start but predictions will not work.")
     print("Please ensure:")
-    print("1. The model file 'best_model_fold1.pth' is in models/")
-    print("2. The class_names.json file is in models/")
+    print(f"1. The model file 'best_model_fold1.pth' is in {default_models_dir()}")
+    print(f"2. The class_names.json file is in {default_models_dir()}")
 
 
 @app.route("/")
