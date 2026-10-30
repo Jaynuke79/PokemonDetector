@@ -152,7 +152,7 @@ docker compose down
 - **Package Manager:** Uses UV (not pip)
 - **Entry Point:** `poke` CLI defined in `pyproject.toml` → `cli.main:cli`
 - **Packages:** `cli`, `webapp`, `lib` all defined in setuptools
-- **No Duplicate Code:** All detection logic is in `lib/`, shared by both outputs
+- **No Duplicate Code:** All detection logic is in `lib/`, shared by both outputs. `demo-vercel/` is the exception: it deploys standalone without torch, so it keeps its own copy of the results rendering and prediction formatting, and tests check the copies match
 - **Tests:** `uv sync --extra test`, then `.venv/bin/pytest`. Tests never load the real model weights.
 - **Dev Dependencies:** Optional (jupyter, ipykernel, jupyterlab) must be added manually to pyproject.toml
 
