@@ -476,3 +476,22 @@ def test_other_upstream_errors_stay_generic_and_retry(
     assert response.status_code == 500
     assert response.get_json() == {"error": "Prediction failed"}
     assert upstream_calls == 2
+
+
+def test_api_key_with_trailing_newline_stays_out_of_logs(monkeypatch, caplog):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-secret-key\n")
+    spec = importlib.util.spec_from_file_location("vercel_api", API_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def send_prepared_request(_session, prepared, **_kwargs):
+        assert prepared.headers["Authorization"] == "Bearer sk-or-secret-key"
+        raise module.requests.exceptions.ConnectionError("upstream unavailable")
+
+    monkeypatch.setattr(module.requests.Session, "send", send_prepared_request)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+
+    response = module.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert "sk-or-secret-key" not in caplog.text
