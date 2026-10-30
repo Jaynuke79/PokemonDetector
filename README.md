@@ -155,6 +155,7 @@ All outputs share the same core detection logic from `lib/detector_core.py`:
 - Model files (`best_model_fold1.pth`, `class_names.json`) are **not** in version control
 - Download them from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
 - Place them in the `models/` directory
+- To keep them elsewhere, point the CLI at that directory with the `POKE_MODELS_DIR` environment variable
 - The model is trained on Generation 1 Pokemon only (151 classes)
 
 ---

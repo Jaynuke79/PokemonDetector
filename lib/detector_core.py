@@ -6,11 +6,30 @@ used by both the CLI tool and web application.
 """
 
 import json
+import os
+import sys
+from pathlib import Path
 
 import timm
 import torch
 from PIL import Image
 from torchvision import transforms
+
+
+def default_models_dir():
+    """Locate the directory holding the default weights and class names.
+
+    Returns:
+        Path from the POKE_MODELS_DIR environment variable if set, else the
+        models/ directory PyInstaller unpacked, else the one in the project root
+    """
+    configured = os.environ.get("POKE_MODELS_DIR")
+    if configured:
+        return Path(configured)
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        return Path(bundle_root) / "models"
+    return Path(__file__).resolve().parents[1] / "models"
 
 
 def load_class_names(path):
