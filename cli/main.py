@@ -11,7 +11,7 @@ from lib.detector_core import (
     load_model,
     get_device,
     get_transform,
-    predict_image
+    predict_image,
 )
 
 
@@ -19,8 +19,16 @@ from lib.detector_core import (
 @click.argument("img_path")
 @click.option("--topk", default=5, help="Number of top predictions to return.")
 @click.option("--model", default="convnext_base", help="Model architecture to use.")
-@click.option("--weights", default="models/best_model_fold1.pth", help="Path to model weights file.")
-@click.option("--class-names-path", default="models/class_names.json", help="Path to class names JSON file.")
+@click.option(
+    "--weights",
+    default="models/best_model_fold1.pth",
+    help="Path to model weights file.",
+)
+@click.option(
+    "--class-names-path",
+    default="models/class_names.json",
+    help="Path to class names JSON file.",
+)
 @click.option("--verbose", default=False, help="Enable verbose output.")
 def cli(img_path, topk, model, weights, class_names_path, verbose):
     """Command line interface for image classification using a pre-trained model.
@@ -44,13 +52,17 @@ def cli(img_path, topk, model, weights, class_names_path, verbose):
         return
 
     transform = get_transform()
-    results = predict_image(img_path, loaded_model, transform, device, class_names, topk=topk)
+    results = predict_image(
+        img_path, loaded_model, transform, device, class_names, topk=topk
+    )
 
     if verbose:
         print(f"Predictions for image: {img_path}")
 
     for idx, class_name, confidence in results:
-        print(f"Class Index: {idx}, Class Name: {class_name}, Confidence: {confidence:.4f}")
+        print(
+            f"Class Index: {idx}, Class Name: {class_name}, Confidence: {confidence:.4f}"
+        )
 
 
 if __name__ == "__main__":
