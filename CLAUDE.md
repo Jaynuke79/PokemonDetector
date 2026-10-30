@@ -169,7 +169,7 @@ uv add package-name
 
 **Updating model location:**
 - Always use `models/` directory for model files
-- Both CLI and webapp check `models/` for weights and class names
+- Both CLI and webapp find weights and class names through `default_models_dir()`: `POKE_MODELS_DIR`, then the PyInstaller bundle, then `<project root>/models`. A `models/` in the working directory is not used
 - Docker mounts `../models` as volume
 
 **Making changes to core logic:**
