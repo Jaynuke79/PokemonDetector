@@ -11,12 +11,13 @@ import os
 
 import requests
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 
 # OpenRouter configuration
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 
 ALLOWED_IMAGE_MIME_TYPES = frozenset(
@@ -28,6 +29,10 @@ OPENROUTER_CONNECT_TIMEOUT_SECONDS = 3
 OPENROUTER_READ_TIMEOUT_SECONDS = 25
 OPENROUTER_MAX_ATTEMPTS = 2
 OPENROUTER_RETRY_DELAY_SECONDS = 1
+
+
+class OpenRouterTimeoutError(Exception):
+    pass
 
 
 def parse_error_fallback():
@@ -200,8 +205,7 @@ Important:
                 time.sleep(OPENROUTER_RETRY_DELAY_SECONDS)
                 continue
             else:
-                # Final attempt failed - raise helpful error
-                raise ValueError(
+                raise OpenRouterTimeoutError(
                     f"OpenRouter API timed out after {OPENROUTER_MAX_ATTEMPTS} attempts. "
                     f"The model '{OPENROUTER_MODEL}' did not respond within "
                     f"{OPENROUTER_READ_TIMEOUT_SECONDS}s per attempt. "
@@ -284,9 +288,18 @@ def predict():
         predictions = predict_with_openrouter(image_base64, mime_type, topk=5)
         return jsonify({"predictions": predictions})
 
-    except Exception as e:  # noqa: BLE001
-        print(f"Prediction error: {e!s}")
-        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
+    except HTTPException as e:
+        return jsonify({"error": e.name}), e.code
+
+    except OpenRouterTimeoutError:
+        app.logger.exception("OpenRouter request timed out")
+        return jsonify(
+            {"error": "The model took too long to respond. Try a smaller image."}
+        ), 500
+
+    except Exception:
+        app.logger.exception("Prediction failed")
+        return jsonify({"error": "Prediction failed"}), 500
 
 
 # Vercel needs the app to be exported
