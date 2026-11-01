@@ -20,6 +20,8 @@ PARSE_ERROR = [
 
 
 class FakeResponse:
+    status_code = 200
+
     def __init__(self, content):
         self._content = content
 
@@ -293,17 +295,241 @@ def test_worst_case_upstream_time_fits_function_duration(timed_out_request):
     assert connect_and_read_seconds + sum(sleeps) < max_duration
 
 
-def test_timeout_error_describes_the_configured_limits(timed_out_request):
-    response, upstream_timeouts, _ = timed_out_request
-    error = response.get_json()["error"]
+def test_timeout_error_hides_model_and_limits(vercel_api, timed_out_request, caplog):
+    response, _, _ = timed_out_request
 
-    assert f"after {len(upstream_timeouts)} attempts" in error
-    assert f"{upstream_timeouts[0][1]}s per attempt" in error
-    assert "10s limit" not in error
-    assert "Vercel Pro" not in error
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "The model took too long to respond. Try a smaller image."
+    }
+    assert any(
+        vercel_api.OPENROUTER_MODEL in str(record.exc_info[1])
+        for record in caplog.get_records("setup")
+    )
 
 
 def test_vercel_config_does_not_combine_builds_with_functions():
     config = json.loads((DEMO_DIR / "vercel.json").read_text())
 
     assert "builds" not in config
+
+
+UPSTREAM_DETAIL = "https://openrouter.ai/api/v1/chat/completions upstream-detail"
+
+
+def raise_from_post(exception):
+    def fake_post(*_args, **_kwargs):
+        raise exception
+
+    return fake_post
+
+
+def reply_with_envelope(envelope):
+    class EnvelopeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return envelope
+
+    def fake_post(*_args, **_kwargs):
+        return EnvelopeResponse()
+
+    return fake_post
+
+
+@pytest.mark.parametrize(
+    "make_fake_post",
+    [
+        lambda api: raise_from_post(
+            api.requests.exceptions.HTTPError(f"404 Client Error for {UPSTREAM_DETAIL}")
+        ),
+        lambda api: raise_from_post(
+            api.requests.exceptions.ConnectionError(UPSTREAM_DETAIL)
+        ),
+        lambda api: raise_from_post(RuntimeError(UPSTREAM_DETAIL)),
+        lambda _api: reply_with_envelope({"error": UPSTREAM_DETAIL}),
+    ],
+    ids=["http-error", "connection-error", "unexpected-error", "no-choices"],
+)
+def test_upstream_failure_detail_is_logged_not_returned(
+    vercel_api, monkeypatch, caplog, make_fake_post
+):
+    monkeypatch.setattr(vercel_api.requests, "post", make_fake_post(vercel_api))
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+
+    response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert UPSTREAM_DETAIL in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("envelope", "exception_text"),
+    [
+        ({"choices": [{}]}, "message"),
+        ({"choices": None}, "NoneType"),
+    ],
+    ids=["choice-without-message", "null-choices"],
+)
+def test_malformed_envelope_returns_generic_error(
+    vercel_api, monkeypatch, envelope, exception_text
+):
+    monkeypatch.setattr(vercel_api.requests, "post", reply_with_envelope(envelope))
+
+    response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert exception_text not in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    ("request_kwargs", "status", "error"),
+    [
+        (
+            {"data": "{not json", "content_type": "application/json"},
+            400,
+            "Bad Request",
+        ),
+        (
+            {"data": "text", "content_type": "text/plain"},
+            415,
+            "Unsupported Media Type",
+        ),
+        (
+            {"data": "x" * 5_000_000, "content_type": "application/json"},
+            413,
+            "Request Entity Too Large",
+        ),
+    ],
+    ids=["invalid-json", "wrong-content-type", "too-large"],
+)
+def test_rejected_request_keeps_its_status_with_a_fixed_message(
+    vercel_api, request_kwargs, status, error
+):
+    response = vercel_api.app.test_client().post("/api/predict", **request_kwargs)
+
+    assert response.status_code == status
+    assert response.get_json() == {"error": error}
+
+
+def test_missing_api_key_message_stays_helpful(vercel_api, monkeypatch):
+    monkeypatch.setattr(vercel_api, "OPENROUTER_API_KEY", None)
+
+    response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "OpenRouter API key not configured"}
+
+
+LIMIT_MESSAGE = "This demo has reached its daily limit. Please try again later."
+LIMIT_DETAIL = "$1.02 of $1.00 used; resets 2026-10-12T00:00:00.000Z"
+
+
+def openrouter_error(limit_source=None, code=402):
+    metadata = {"limit_source": limit_source} if limit_source else {}
+    return {"error": {"code": code, "message": LIMIT_DETAIL, "metadata": metadata}}
+
+
+@pytest.fixture
+def predict_with_upstream_status(vercel_api, monkeypatch):
+    upstream_calls = []
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+
+    def predict(status_code, content):
+        def fake_post(*_args, **_kwargs):
+            upstream_calls.append(1)
+            response = vercel_api.requests.Response()
+            response.status_code = status_code
+            response._content = content
+            return response
+
+        monkeypatch.setattr(vercel_api.requests, "post", fake_post)
+        response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+        return response, len(upstream_calls)
+
+    return predict
+
+
+@pytest.mark.parametrize("status_code", [402, 403])
+@pytest.mark.parametrize(
+    "limit_source",
+    [
+        "openrouter_key_limit",
+        "openrouter_guardrail_budget",
+        "openrouter_workspace_budget",
+    ],
+)
+def test_spending_cap_returns_fixed_message_without_retrying(
+    predict_with_upstream_status, caplog, limit_source, status_code
+):
+    body = openrouter_error(limit_source, status_code)
+
+    response, upstream_calls = predict_with_upstream_status(
+        status_code, json.dumps(body).encode()
+    )
+
+    assert response.status_code == 503
+    assert response.get_json() == {"error": LIMIT_MESSAGE}
+    assert upstream_calls == 1
+    assert LIMIT_DETAIL in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("status_code", "content"),
+    [
+        (402, json.dumps(openrouter_error("openrouter_credits")).encode()),
+        (402, json.dumps(openrouter_error("openrouter_in_flight_budget")).encode()),
+        (402, json.dumps(openrouter_error()).encode()),
+        (403, json.dumps(openrouter_error()).encode()),
+        (429, json.dumps(openrouter_error("openrouter_key_limit")).encode()),
+        (402, b"not json"),
+        (402, b"[]"),
+        (402, b'{"error": "text"}'),
+        (402, b'{"error": {"metadata": "text"}}'),
+        (402, b'{"error": {"metadata": {"limit_source": ["openrouter_key_limit"]}}}'),
+    ],
+    ids=[
+        "credits",
+        "in-flight-budget",
+        "402-no-source",
+        "403-no-source",
+        "key-source-on-429",
+        "not-json",
+        "not-object",
+        "error-not-object",
+        "metadata-not-object",
+        "limit-source-not-string",
+    ],
+)
+def test_other_upstream_errors_stay_generic_and_retry(
+    predict_with_upstream_status, status_code, content
+):
+    response, upstream_calls = predict_with_upstream_status(status_code, content)
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert upstream_calls == 2
+
+
+def test_api_key_with_trailing_newline_stays_out_of_logs(monkeypatch, caplog):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-secret-key\n")
+    spec = importlib.util.spec_from_file_location("vercel_api", API_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def send_prepared_request(_session, prepared, **_kwargs):
+        assert prepared.headers["Authorization"] == "Bearer sk-or-secret-key"
+        raise module.requests.exceptions.ConnectionError("upstream unavailable")
+
+    monkeypatch.setattr(module.requests.Session, "send", send_prepared_request)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+
+    response = module.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
+
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert "sk-or-secret-key" not in caplog.text

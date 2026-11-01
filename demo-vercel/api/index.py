@@ -12,12 +12,13 @@ import time
 
 import requests
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 
 # OpenRouter configuration
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 
 ALLOWED_IMAGE_MIME_TYPES = frozenset(
@@ -29,6 +30,41 @@ OPENROUTER_CONNECT_TIMEOUT_SECONDS = 3
 OPENROUTER_READ_TIMEOUT_SECONDS = 25
 OPENROUTER_MAX_ATTEMPTS = 2
 OPENROUTER_RETRY_DELAY_SECONDS = 1
+
+# Configured spending caps, per https://openrouter.ai/docs/api-reference/limits.
+# Credits and in-flight budget share these statuses but are not caps.
+OPENROUTER_SPENDING_CAP_SOURCES = frozenset(
+    {
+        "openrouter_key_limit",
+        "openrouter_guardrail_budget",
+        "openrouter_workspace_budget",
+    }
+)
+OPENROUTER_LIMIT_STATUS_CODES = frozenset({402, 403})
+
+
+class OpenRouterTimeoutError(Exception):
+    pass
+
+
+class OpenRouterSpendingCapError(Exception):
+    pass
+
+
+def is_spending_cap_response(response):
+    if response.status_code not in OPENROUTER_LIMIT_STATUS_CODES:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    error = body.get("error") if isinstance(body, dict) else None
+    metadata = error.get("metadata") if isinstance(error, dict) else None
+    limit_source = metadata.get("limit_source") if isinstance(metadata, dict) else None
+    return (
+        isinstance(limit_source, str)
+        and limit_source in OPENROUTER_SPENDING_CAP_SOURCES
+    )
 
 
 def parse_error_fallback():
@@ -152,6 +188,9 @@ Important:
                 ),
             )
 
+            if is_spending_cap_response(response):
+                raise OpenRouterSpendingCapError(response.text)
+
             # Process the response immediately after successful request
             response.raise_for_status()
             result = response.json()
@@ -200,8 +239,7 @@ Important:
                 time.sleep(OPENROUTER_RETRY_DELAY_SECONDS)
                 continue
             else:
-                # Final attempt failed - raise helpful error
-                raise ValueError(
+                raise OpenRouterTimeoutError(
                     f"OpenRouter API timed out after {OPENROUTER_MAX_ATTEMPTS} attempts. "
                     f"The model '{OPENROUTER_MODEL}' did not respond within "
                     f"{OPENROUTER_READ_TIMEOUT_SECONDS}s per attempt. "
@@ -284,9 +322,24 @@ def predict():
         predictions = predict_with_openrouter(image_base64, mime_type, topk=5)
         return jsonify({"predictions": predictions})
 
-    except Exception as e:  # noqa: BLE001
-        print(f"Prediction error: {e!s}")
-        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
+    except HTTPException as e:
+        return jsonify({"error": e.name}), e.code
+
+    except OpenRouterSpendingCapError:
+        app.logger.exception("OpenRouter spending cap reached")
+        return jsonify(
+            {"error": "This demo has reached its daily limit. Please try again later."}
+        ), 503
+
+    except OpenRouterTimeoutError:
+        app.logger.exception("OpenRouter request timed out")
+        return jsonify(
+            {"error": "The model took too long to respond. Try a smaller image."}
+        ), 500
+
+    except Exception:
+        app.logger.exception("Prediction failed")
+        return jsonify({"error": "Prediction failed"}), 500
 
 
 # For local testing
