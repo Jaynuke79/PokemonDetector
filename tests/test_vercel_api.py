@@ -459,6 +459,7 @@ def test_spending_cap_returns_fixed_message_without_retrying(
         (402, b"[]"),
         (402, b'{"error": "text"}'),
         (402, b'{"error": {"metadata": "text"}}'),
+        (402, b'{"error": {"metadata": {"limit_source": ["openrouter_key_limit"]}}}'),
     ],
     ids=[
         "credits",
@@ -470,6 +471,7 @@ def test_spending_cap_returns_fixed_message_without_retrying(
         "not-object",
         "error-not-object",
         "metadata-not-object",
+        "limit-source-not-string",
     ],
 )
 def test_other_upstream_errors_stay_generic_and_retry(

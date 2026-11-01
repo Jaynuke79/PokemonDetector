@@ -59,9 +59,10 @@ def is_spending_cap_response(response):
         return False
     error = body.get("error") if isinstance(body, dict) else None
     metadata = error.get("metadata") if isinstance(error, dict) else None
+    limit_source = metadata.get("limit_source") if isinstance(metadata, dict) else None
     return (
-        isinstance(metadata, dict)
-        and metadata.get("limit_source") in OPENROUTER_SPENDING_CAP_SOURCES
+        isinstance(limit_source, str)
+        and limit_source in OPENROUTER_SPENDING_CAP_SOURCES
     )
 
 
