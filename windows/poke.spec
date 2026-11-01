@@ -41,7 +41,6 @@ a = Analysis(
         'torch',
         'torchvision',
         'timm',
-        'numpy',
         'PIL',
         'PIL.Image',
         'PIL._imaging',
