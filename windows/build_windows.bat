@@ -30,7 +30,7 @@ echo Installing dependencies...
 pip install --upgrade pip
 pip install pyinstaller
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip install timm click numpy pillow
+pip install timm click pillow
 
 REM Check if model file exists with better diagnostics
 echo.

@@ -8,6 +8,7 @@ import base64
 import json
 import math
 import os
+import time
 
 import requests
 from flask import Flask, jsonify, request
@@ -149,9 +150,6 @@ Important:
 - Confidence scores should sum to approximately 1.0
 - Only include Generation 1 Pokemon (Pokemon #1-151)
 - Return ONLY the JSON, no other text"""
-
-    # Call OpenRouter API with retry logic
-    import time
 
     for attempt in range(OPENROUTER_MAX_ATTEMPTS):
         try:
@@ -341,10 +339,6 @@ def predict():
         app.logger.exception("Prediction failed")
         return jsonify({"error": "Prediction failed"}), 500
 
-
-# Vercel needs the app to be exported
-# The Flask app object itself is the handler
-# No need for a wrapper function
 
 # For local testing
 if __name__ == "__main__":

@@ -95,7 +95,7 @@ def predict_image(img_path, model, transform, device, class_names, topk=2):
 
     Args:
         img_path: Path to the image file, or a binary file-like object
-        model: Loaded PyTorch model
+        model: Loaded PyTorch model in eval mode
         transform: Image transformation pipeline
         device: PyTorch device
         class_names: List of class names
@@ -106,7 +106,6 @@ def predict_image(img_path, model, transform, device, class_names, topk=2):
     """
     image = Image.open(img_path).convert("RGB")
     image_tensor = transform(image).unsqueeze(0).to(device)
-    model.eval()
     with torch.no_grad():
         output = model(image_tensor)
         probabilities = torch.softmax(output, dim=1)[0]

@@ -50,13 +50,9 @@ networkx==3.4.2 ; python_full_version < '3.11'
 networkx==3.5 ; python_full_version >= '3.11'
     # via torch
 numpy==2.2.6 ; python_full_version < '3.11'
-    # via
-    #   pokemondetector
-    #   torchvision
+    # via torchvision
 numpy==2.3.0 ; python_full_version >= '3.11'
-    # via
-    #   pokemondetector
-    #   torchvision
+    # via torchvision
 packaging==25.0
     # via huggingface-hub
 pillow==12.3.0 ; python_full_version < '3.11'
