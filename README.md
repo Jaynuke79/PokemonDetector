@@ -110,7 +110,7 @@ Class Index: 114, Class Name: Rhydon, Confidence: 0.0001
 | `--class-names-path` | `class_names.json` in the models directory | Path to the class names file |
 | `--verbose` | off | Flag that prints the device, model and weights being used |
 
-The command exits with 0 on success, 2 for invalid arguments or a missing file, and 1 if the model fails to load, with the cause on stderr.
+The command exits with 0 on success, 2 for invalid arguments or a missing file, and 1 if the model fails to load (with the cause on stderr) or the input file can't be read as an image (with a traceback).
 
 ### 2. Web Application (Local)
 
@@ -123,7 +123,7 @@ uv run python -m webapp.app
 
 `python webapp/app.py` only works when the package is installed, for example by `uv sync`, because it puts `webapp/` rather than the repo root on `sys.path`. `python -m webapp.app` from the repo root works either way.
 
-Upload an image through the web interface to get top 5 predictions. Uploads must be a PNG, JPEG, GIF or BMP image of at most 16 MB and 50 million pixels.
+Upload an image through the web interface to get top 5 predictions. Uploads must be a PNG, JPEG, GIF or BMP image of at most 16 MB and 50 million pixels, with a `.png`, `.jpg`, `.jpeg`, `.gif` or `.bmp` filename.
 
 Without the model files the app still starts, but `/health` returns 503 and `/predict` returns 500. With them, `/health` returns 200.
 
@@ -147,11 +147,11 @@ docker compose -f docker-compose.yml -f docker-compose.direct.yml up --build pok
 docker compose down
 ```
 
-The image uses Python 3.11 and CPU-only PyTorch, and serves the app with gunicorn. Compose mounts `models/` into the container, so download the weights first; until they are there, the container reports unhealthy.
+The image uses Python 3.11 and CPU-only PyTorch, and serves the app with gunicorn. Compose mounts `models/` into the container, so download the weights first. Until they are there the container reports unhealthy, and because the model only loads at startup, restart it after adding them.
 
 ### 4. Vercel Demo
 
-The demo runs from [demo-vercel/](demo-vercel/) on its own, without PyTorch or the trained model. It sends images to a vision model through the OpenRouter API (`anthropic/claude-3.5-sonnet` unless `OPENROUTER_MODEL` is set), so it needs an `OPENROUTER_API_KEY`. Uploads must be a PNG, JPEG, GIF or WebP image of at most 4.5 MB.
+The demo runs from [demo-vercel/](demo-vercel/) on its own, without PyTorch or the trained model. It sends images to a vision model through the OpenRouter API, so it needs an `OPENROUTER_API_KEY`; `OPENROUTER_MODEL` selects the model. Uploads must be a PNG, JPEG, GIF or WebP image of about 3.3 MB or less, because the 4.5 MB request limit applies to the base64-encoded image.
 
 See [demo-vercel/README.md](demo-vercel/README.md) to deploy it and [demo-vercel/TROUBLESHOOTING.md](demo-vercel/TROUBLESHOOTING.md) for common problems.
 
@@ -230,7 +230,7 @@ Want to share this with users on Windows who don't have Python? Build a standalo
 
 Once you have a built `poke.exe`, run it from the command line: `poke.exe your_image.png`
 
-The repository has no published pre-built executable, so build it as shown below.
+To get one, build it as shown below.
 
 ### For Developers (Building the Executable)
 
@@ -241,12 +241,14 @@ Build a standalone Windows executable that includes all dependencies. Download t
 windows\build_windows.bat
 ```
 
-This creates `windows\dist\poke.exe` (~500MB-1GB, includes PyTorch).
+This creates `windows\dist\poke.exe` (estimated ~500MB-1GB, includes PyTorch).
+
+These steps are based on the build files; the executable hasn't been built and tested on Windows yet.
 
 **Documentation:**
 - **[windows/DISTRIBUTION_PACKAGE.md](windows/DISTRIBUTION_PACKAGE.md)** - How to package and distribute
 
-**Features:**
+**Features (based on the build files):**
 - ✅ Single executable file
 - ✅ No Python installation required
 - ✅ Includes all dependencies (PyTorch, timm, etc.)
