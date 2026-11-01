@@ -30,9 +30,40 @@ OPENROUTER_READ_TIMEOUT_SECONDS = 25
 OPENROUTER_MAX_ATTEMPTS = 2
 OPENROUTER_RETRY_DELAY_SECONDS = 1
 
+# Configured spending caps, per https://openrouter.ai/docs/api-reference/limits.
+# Credits and in-flight budget share these statuses but are not caps.
+OPENROUTER_SPENDING_CAP_SOURCES = frozenset(
+    {
+        "openrouter_key_limit",
+        "openrouter_guardrail_budget",
+        "openrouter_workspace_budget",
+    }
+)
+OPENROUTER_LIMIT_STATUS_CODES = frozenset({402, 403})
+
 
 class OpenRouterTimeoutError(Exception):
     pass
+
+
+class OpenRouterSpendingCapError(Exception):
+    pass
+
+
+def is_spending_cap_response(response):
+    if response.status_code not in OPENROUTER_LIMIT_STATUS_CODES:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    error = body.get("error") if isinstance(body, dict) else None
+    metadata = error.get("metadata") if isinstance(error, dict) else None
+    limit_source = metadata.get("limit_source") if isinstance(metadata, dict) else None
+    return (
+        isinstance(limit_source, str)
+        and limit_source in OPENROUTER_SPENDING_CAP_SOURCES
+    )
 
 
 def parse_error_fallback():
@@ -156,6 +187,9 @@ Important:
                     OPENROUTER_READ_TIMEOUT_SECONDS,
                 ),
             )
+
+            if is_spending_cap_response(response):
+                raise OpenRouterSpendingCapError(response.text)
 
             # Process the response immediately after successful request
             response.raise_for_status()
@@ -290,6 +324,12 @@ def predict():
 
     except HTTPException as e:
         return jsonify({"error": e.name}), e.code
+
+    except OpenRouterSpendingCapError:
+        app.logger.exception("OpenRouter spending cap reached")
+        return jsonify(
+            {"error": "This demo has reached its daily limit. Please try again later."}
+        ), 503
 
     except OpenRouterTimeoutError:
         app.logger.exception("OpenRouter request timed out")
