@@ -151,8 +151,6 @@ Important:
 - Only include Generation 1 Pokemon (Pokemon #1-151)
 - Return ONLY the JSON, no other text"""
 
-    # Call OpenRouter API with retry logic
-
     for attempt in range(OPENROUTER_MAX_ATTEMPTS):
         try:
             response = requests.post(
