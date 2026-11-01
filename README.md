@@ -27,8 +27,7 @@ pokemonDetector/
 │
 ├── webapp/                # Web Application Output
 │   ├── app.py             # Flask application
-│   ├── templates/         # HTML templates
-│   └── static/            # Static assets
+│   └── templates/         # HTML templates
 │
 ├── lib/                   # Shared Core Library
 │   ├── __init__.py
@@ -37,12 +36,20 @@ pokemonDetector/
 ├── deployment/            # Docker Deployment Method
 │   ├── Dockerfile
 │   ├── docker-compose.yml
+│   ├── docker-compose.direct.yml  # Publishes the app without nginx
 │   └── nginx.config
 │
 ├── models/                # Model Files (see models/README.md)
 │   ├── best_model_fold1.pth      # Download required
-│   └── class_names.json          # Download required
+│   └── class_names.json          # Included in the repository
 │
+├── windows/               # Windows Executable Build
+│
+├── demo-vercel/           # Vercel Demo (deployed on its own)
+│
+├── tests/                 # Test Suite
+│
+├── requirements.txt       # Pinned dependencies for the Docker image
 └── pyproject.toml         # Project configuration
 ```
 
@@ -52,21 +59,21 @@ pokemonDetector/
 
 ### Prerequisites
 
-1. **Install UV** (Python package manager)
-2. **Download Model Files** - See [models/README.md](models/README.md) for instructions
+1. **Install UV** (Python package manager) - See the [installation guide](https://docs.astral.sh/uv/getting-started/installation/). The project requires Python 3.10 or newer
+2. **Download the Model Weights** - Save `best_model_fold1.pth` from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing) into `models/`. See also [models/README.md](models/README.md)
 
 ### Setup
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd pokemonDetector
-
-# Activate UV environment
-source .venv/bin/activate
+git clone https://github.com/Jaynuke79/PokemonDetector.git
+cd PokemonDetector
 
 # Install dependencies
 uv sync
+
+# Optional: activate the environment (uv run does not need this)
+source .venv/bin/activate
 ```
 
 ---
@@ -86,6 +93,25 @@ uv run poke path/to/image.jpg --topk 3 --verbose
 uv run poke path/to/image.jpg --weights models/best_model_fold1.pth --class-names-path models/class_names.json
 ```
 
+Example, using the image in the repository:
+
+```console
+$ uv run poke gengar.png --topk 3
+Class Index: 40, Class Name: Gengar, Confidence: 0.9984
+Class Index: 51, Class Name: Haunter, Confidence: 0.0011
+Class Index: 114, Class Name: Rhydon, Confidence: 0.0001
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--topk` | 5 | Number of predictions, from 1 up to the number of classes |
+| `--model` | `convnext_base` | Model architecture |
+| `--weights` | `best_model_fold1.pth` in the models directory | Path to the weights file |
+| `--class-names-path` | `class_names.json` in the models directory | Path to the class names file |
+| `--verbose` | off | Flag that prints the device, model and weights being used |
+
+The command exits with 0 on success, 2 for invalid arguments or a missing file, and 1 if the model fails to load, with the cause on stderr.
+
 ### 2. Web Application (Local)
 
 ```bash
@@ -97,7 +123,9 @@ uv run python -m webapp.app
 
 `python webapp/app.py` only works when the package is installed, for example by `uv sync`, because it puts `webapp/` rather than the repo root on `sys.path`. `python -m webapp.app` from the repo root works either way.
 
-Upload an image through the web interface to get top 5 predictions.
+Upload an image through the web interface to get top 5 predictions. Uploads must be a PNG, JPEG, GIF or BMP image of at most 16 MB and 50 million pixels.
+
+Without the model files the app still starts, but `/health` returns 503 and `/predict` returns 500. With them, `/health` returns 200.
 
 ### 3. Docker Deployment
 
@@ -119,18 +147,38 @@ docker compose -f docker-compose.yml -f docker-compose.direct.yml up --build pok
 docker compose down
 ```
 
+The image uses Python 3.11 and CPU-only PyTorch, and serves the app with gunicorn. Compose mounts `models/` into the container, so download the weights first; until they are there, the container reports unhealthy.
+
+### 4. Vercel Demo
+
+The demo runs from [demo-vercel/](demo-vercel/) on its own, without PyTorch or the trained model. It sends images to a vision model through the OpenRouter API (`anthropic/claude-3.5-sonnet` unless `OPENROUTER_MODEL` is set), so it needs an `OPENROUTER_API_KEY`. Uploads must be a PNG, JPEG, GIF or WebP image of at most 4.5 MB.
+
+See [demo-vercel/README.md](demo-vercel/README.md) to deploy it and [demo-vercel/TROUBLESHOOTING.md](demo-vercel/TROUBLESHOOTING.md) for common problems.
+
+---
+
+## 🧪 Running Tests
+
+```bash
+uv sync --extra test
+.venv/bin/pytest
+```
+
+The tests use a stub model and never load the real weights, so they don't need the download.
+
 ---
 
 ## 🏗️ Architecture
 
-All outputs share the same core detection logic from `lib/detector_core.py`:
+The CLI, web application and Windows executable share the same core detection logic from `lib/detector_core.py`:
 
 - **Model**: ConvNeXt base architecture (via `timm` library)
 - **Input**: Images resized to 224x224, normalized with ImageNet stats
 - **Output**: Top-k predictions with confidence scores
-- **Classes**: 151 Pokemon (Generation 1)
+- **Classes**: 149 Generation 1 Pokemon, listed in `models/class_names.json`
 
 **Shared Library (`lib/detector_core.py`):**
+- `default_models_dir()` - Locate the model files
 - `load_class_names()` - Load Pokemon class labels
 - `load_model()` - Initialize ConvNeXt model with weights
 - `get_device()` - Detect CUDA/CPU
@@ -139,9 +187,11 @@ All outputs share the same core detection logic from `lib/detector_core.py`:
 
 **CLI Tool** imports the library and provides a Click-based command interface.
 
-**Web Application** imports the library and wraps it in Flask routes with HTML upload form.
+**Web Application** imports the library and wraps it in Flask routes with HTML upload form: `/`, `/predict` and `/health`.
 
-**Docker Deployment** containerizes the web application with volume mounts for model files.
+**Docker Deployment** containerizes the web application with volume mounts for model files. nginx is the published entry point on port 80 and has no TLS; `docker-compose.direct.yml` publishes the app on `127.0.0.1:5000` instead.
+
+**Vercel Demo** does not use the library. It keeps its own copy of the results rendering and prediction formatting, and tests check that the copies match.
 
 ---
 
@@ -152,53 +202,56 @@ All outputs share the same core detection logic from `lib/detector_core.py`:
 - **TIMM** - Pre-trained model library
 - **Click** - CLI framework
 - **Flask** - Web framework
+- **Gunicorn** - WSGI server in the Docker image
+- **nginx** - Reverse proxy in the Docker deployment
 - **Docker** - Containerization
+- **OpenRouter** - Vision model API for the Vercel demo
+- **pytest** - Test framework
 
 ---
 
 ## ⚠️ Important Notes
 
-- Model files (`best_model_fold1.pth`, `class_names.json`) are **not** in version control
-- Download them from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
-- Place them in the `models/` directory
-- To keep them elsewhere, point the CLI and web app at that directory with the `POKE_MODELS_DIR` environment variable
-- The model is trained on Generation 1 Pokemon only (151 classes)
+- The model weights (`best_model_fold1.pth`) are **not** in version control; `class_names.json` is
+- Download the weights from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
+- Place the file in the `models/` directory
+- To keep the model files elsewhere, point the CLI and web app at that directory with the `POKE_MODELS_DIR` environment variable
+- The CLI and web app look in `POKE_MODELS_DIR`, then the Windows executable's bundle, then `models/` in the project root. A `models/` in the current directory is not used
+- After a non-editable install such as `pip install .`, the project root has no models, so set `POKE_MODELS_DIR` or pass `--weights` and `--class-names-path`
+- The model is trained on 149 Generation 1 Pokemon. Nidoran♀ and Nidoran♂ are not among its classes
 
 ---
 
 ## 💻 Windows Executable Distribution
 
-Want to share this with non-technical users on Windows? Build a click-to-run executable!
+Want to share this with users on Windows who don't have Python? Build a standalone executable!
 
 ### For End Users (No Python Required!)
 
-Download the pre-built Windows executable and simply:
-1. **Drag and drop** an image onto `drop_image_here.bat`
-2. **Or run** from command line: `poke.exe your_image.png`
+Once you have a built `poke.exe`, run it from the command line: `poke.exe your_image.png`
 
-See [USER_README.txt](USER_README.txt) for complete user instructions.
+The repository has no published pre-built executable, so build it as shown below.
 
 ### For Developers (Building the Executable)
 
-Build a standalone Windows executable that includes all dependencies:
+Build a standalone Windows executable that includes all dependencies. Download the model weights into `models/` first, because the build bundles them:
 
 ```batch
 # On Windows, run:
-build_windows.bat
+windows\build_windows.bat
 ```
 
-This creates `dist/poke.exe` (~500MB-1GB, includes PyTorch).
+This creates `windows\dist\poke.exe` (~500MB-1GB, includes PyTorch).
 
 **Documentation:**
-- **[WINDOWS_BUILD.md](WINDOWS_BUILD.md)** - Complete build instructions and troubleshooting
-- **[DISTRIBUTION_PACKAGE.md](DISTRIBUTION_PACKAGE.md)** - How to package and distribute
+- **[windows/DISTRIBUTION_PACKAGE.md](windows/DISTRIBUTION_PACKAGE.md)** - How to package and distribute
 
 **Features:**
 - ✅ Single executable file
 - ✅ No Python installation required
 - ✅ Includes all dependencies (PyTorch, timm, etc.)
-- ✅ Drag-and-drop interface
-- ✅ Works on any Windows 10+ machine
+- ✅ Includes the model weights and class names
+- ✅ Targets Windows 10 or later
 
 ---
 
