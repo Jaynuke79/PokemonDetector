@@ -143,6 +143,14 @@ demo-vercel/
 └── README.md                 # This file
 ```
 
+## 🔗 Relationship to the Main App
+
+This demo deploys on its own from this folder, with no build step and no torch, so it can't import from `lib/` or `webapp/`. It keeps its own copy of the results rendering in `public/index.html` and of the prediction formatting in `api/index.py` on purpose.
+
+`tests/test_results_rendering.py` and `tests/test_vercel_api.py` fail if these copies drift from the main web app. When you change one, make the same change in the other. The one allowed difference is the empty-predictions guard at the top of `displayResults` in `public/index.html`.
+
+---
+
 ## 🧪 Local Testing
 
 ```bash

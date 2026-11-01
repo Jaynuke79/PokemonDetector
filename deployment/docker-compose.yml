@@ -3,15 +3,12 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     volumes:
       # Mount model directory - place your model file here
       - "../models:/app/models"
-      # Optional: mount for persistent uploads
-      - "../uploads:/app/uploads"
     environment:
-      - FLASK_ENV=production
       - FLASK_DEBUG=0
     restart: unless-stopped
     healthcheck:
@@ -21,12 +18,11 @@ services:
       retries: 3
       start_period: 90s
 
-  # Optional: Add nginx for production
+  # Public entry point; to reach the app directly, add docker-compose.direct.yml
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - "./nginx.config:/etc/nginx/nginx.conf:ro"
       # Add SSL certificates if needed
