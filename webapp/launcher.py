@@ -39,13 +39,11 @@ def hold_running_mutex():
         print("Warning: installers will not be able to tell this app is running.")
 
 
+# Werkzeug binds with SO_REUSEADDR, which on Windows lets two processes that
+# both set it share a port, so the launcher binds its own socket without it.
 def _listen_on(port):
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        if sys.platform == "win32":
-            # Otherwise bind succeeds on a port held by a process that set
-            # SO_REUSEADDR, and requests can reach either process.
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((HOST, port))
         listener.listen()
     except OSError:

@@ -313,7 +313,7 @@ try {
 
     Assert-WebPredictsGengar $launcher 'web app'
     Assert-OnlyLoopback $launcher.Port
-    Write-Host "EXPERIMENT can-take-port=$(Test-CanTakePortWithReuse $launcher.Port)"
+    Assert-True (-not (Test-CanTakePortWithReuse $launcher.Port)) 'another process cannot bind the port with SO_REUSEADDR while the app runs'
     Assert-True (Test-RunningMutex) 'the web launcher holds its mutex'
 
     Write-Host '=== 3a. Upgrade and uninstall while the web app runs'
@@ -329,6 +329,7 @@ try {
     $process = Start-Process -FilePath (Join-Path $InstallDir 'unins000.exe') -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -PassThru
     $exitCode = Wait-ProcessExitCode $process 'Uninstaller while running'
     Write-Host "Uninstaller while the app runs, exit code: $exitCode"
+    Assert-True ($exitCode -eq 1) 'the uninstaller refuses to run while the app runs (exit code 1)'
     # The uninstaller relaunches itself from %TEMP%, so give that copy time to act.
     Start-Sleep -Seconds 30
     Assert-True ((Get-InstallFingerprint) -eq $before) "the uninstaller left the install intact ($before)"
@@ -343,6 +344,7 @@ try {
 Assert-True (-not (Test-RunningMutex)) 'the mutex goes away with the web launcher'
 
 Write-Host '=== 3b. Web app with port 5000 already taken'
+# The holder sets SO_REUSEADDR, so a launcher that also set it would bind 5000 as well.
 $holder = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 5000)
 $holder.Server.SetSocketOption(
     [System.Net.Sockets.SocketOptionLevel]::Socket,

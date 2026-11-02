@@ -36,6 +36,11 @@ def test_open_listener_binds_only_to_loopback():
         assert listener.getsockname()[0] == "127.0.0.1"
 
 
+def test_open_listener_does_not_share_the_port():
+    with launcher.open_listener(0) as listener:
+        assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
+
+
 def test_open_listener_uses_the_preferred_port_when_free():
     with launcher.open_listener(0) as probe:
         free_port = probe.getsockname()[1]
