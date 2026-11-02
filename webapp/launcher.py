@@ -45,7 +45,7 @@ def _listen_on(port):
         if sys.platform == "win32":
             # Otherwise bind succeeds on a port held by a process that set
             # SO_REUSEADDR, and requests can reach either process.
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            pass
         listener.bind((HOST, port))
         listener.listen()
     except OSError:
