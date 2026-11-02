@@ -78,8 +78,11 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           function Get-InnoVersion {
             if (-not (Test-Path -LiteralPath $iscc)) { return 'not installed' }
-            $info = (Get-Item -LiteralPath $iscc).VersionInfo
-            return "$($info.FileMajorPart).$($info.FileMinorPart).$($info.FileBuildPart)"
+            # ISCC.exe has no version resource, and it exits nonzero when only printing help.
+            $PSNativeCommandUseErrorActionPreference = $false
+            $banner = (& $iscc /? 2>&1 | Select-Object -First 5) -join "`n"
+            if ($banner -match '\b\d+\.\d+\.\d+\b') { return $Matches[0] }
+            throw "No version in the ISCC banner: $banner"
           }
           Write-Host "Inno Setup on the runner image: $(Get-InnoVersion)"
           if ((Get-InnoVersion) -ne $env:INNO_SETUP_VERSION) {
