@@ -1,10 +1,16 @@
+import re
 import socket
+import sys
 import threading
 import urllib.request
+from pathlib import Path
 
 import pytest
+from werkzeug.serving import make_server
 
 from webapp import launcher
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -86,7 +92,7 @@ def test_serve_answers_requests_by_the_time_the_browser_opens(
     monkeypatch.setattr(webapp_module, "model", stub_model)
     statuses = []
     servers = []
-    real_make_server = launcher.make_server
+    real_make_server = make_server
 
     def recording_make_server(*args, **kwargs):
         servers.append(real_make_server(*args, **kwargs))
@@ -103,7 +109,7 @@ def test_serve_answers_requests_by_the_time_the_browser_opens(
         threading.Thread(target=fetch, daemon=True).start()
         return True
 
-    monkeypatch.setattr(launcher, "make_server", recording_make_server)
+    monkeypatch.setattr("werkzeug.serving.make_server", recording_make_server)
     monkeypatch.delenv(launcher.NO_BROWSER_ENV_VAR, raising=False)
     monkeypatch.setattr(launcher.webbrowser, "open", request_health_then_stop)
 
@@ -120,7 +126,7 @@ def test_run_refuses_to_serve_without_a_model(webapp_module, monkeypatch, capsys
     )
 
     assert launcher.run() == 1
-    assert "could not load its model" in capsys.readouterr().out
+    assert "cannot start without its model" in capsys.readouterr().out
 
 
 def test_run_serves_the_existing_flask_app(webapp_module, stub_model, monkeypatch):
@@ -166,3 +172,70 @@ def test_main_does_not_wait_for_input_when_not_interactive(monkeypatch):
     )
 
     assert launcher.main() == 1
+
+
+def test_installer_waits_on_the_mutex_the_launcher_holds():
+    installer = (REPO_ROOT / "windows" / "installer.iss").read_text()
+
+    assert re.findall(r"^AppMutex=(.+)$", installer, re.MULTILINE) == [
+        launcher.RUNNING_MUTEX_NAME
+    ]
+
+
+def test_hold_running_mutex_does_nothing_off_windows(monkeypatch):
+    monkeypatch.setattr(launcher.sys, "platform", "linux")
+    monkeypatch.setattr(
+        launcher.ctypes,
+        "WinDLL",
+        lambda *_: pytest.fail("called a Windows API"),
+        raising=False,
+    )
+
+    launcher.hold_running_mutex()
+
+
+@pytest.mark.parametrize(("handle", "warns"), [(123, False), (None, True)])
+def test_hold_running_mutex_creates_the_named_mutex(monkeypatch, capsys, handle, warns):
+    calls = []
+
+    class Kernel32:
+        @staticmethod
+        def CreateMutexW(*args):
+            calls.append(args)
+            return handle
+
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setattr(
+        launcher.ctypes, "WinDLL", lambda _name: Kernel32, raising=False
+    )
+
+    launcher.hold_running_mutex()
+
+    assert calls == [(None, False, launcher.RUNNING_MUTEX_NAME)]
+    assert ("Warning" in capsys.readouterr().out) is warns
+
+
+def test_run_takes_the_mutex_before_loading_the_model(monkeypatch):
+    monkeypatch.setattr(
+        launcher,
+        "hold_running_mutex",
+        lambda: (_ for _ in ()).throw(RuntimeError("reached mutex")),
+    )
+
+    with pytest.raises(RuntimeError, match="reached mutex"):
+        launcher.run()
+
+
+def test_main_pauses_when_the_server_import_fails(
+    webapp_module, stub_model, monkeypatch, capsys
+):
+    prompts = []
+    monkeypatch.setattr(webapp_module, "model", stub_model)
+    monkeypatch.setitem(sys.modules, "werkzeug.serving", None)
+    monkeypatch.setattr(launcher, "PREFERRED_PORT", 0)
+    monkeypatch.setattr(launcher.sys.stdin, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr("builtins.input", prompts.append)
+
+    assert launcher.main() == 1
+    assert "werkzeug.serving" in capsys.readouterr().err
+    assert len(prompts) == 1

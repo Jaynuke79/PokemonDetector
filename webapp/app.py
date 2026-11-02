@@ -82,7 +82,7 @@ def initialize_model():
 print("Initializing Pokemon Detector...")
 if not initialize_model():
     print("ERROR: Model initialization failed.")
-    print("The app will start but predictions will not work.")
+    print("Predictions will not work until this is fixed.")
     print("Please ensure:")
     print(f"1. The model file 'best_model_fold1.pth' is in {default_models_dir()}")
     print(f"2. The class_names.json file is in {default_models_dir()}")

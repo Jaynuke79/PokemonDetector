@@ -109,7 +109,7 @@ docker compose down
 
 **Location:** Place both files in `models/` directory
 
-**Note:** Model files are NOT in version control. Applications will start without them but predictions will fail with informative errors.
+**Note:** Model files are NOT in version control. The CLI and Flask app start without them but predictions fail with informative errors; the Windows launcher (`webapp/launcher.py`) instead explains the problem and exits with code 1.
 
 ### Core Components
 

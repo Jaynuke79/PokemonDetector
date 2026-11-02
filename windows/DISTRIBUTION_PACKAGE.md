@@ -6,7 +6,7 @@ The distributable is one file, `PokemonDetectorSetup-<version>.exe`. Users do no
 
 The [Windows installer workflow](../.github/workflows/windows-installer.yml) builds, tests and uploads it on a clean Windows runner. It stores the installer and a `.sha256` file as a workflow artifact for 7 days. It does not publish a release.
 
-To build it on your own Windows PC instead, run `windows\build_windows.bat`. It needs Python 3.11 and the weights in `models\`, and it compiles the installer if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed.
+The workflow builds with `windows\build_windows.bat`, and you can run the same script on your own Windows PC. It needs Python 3.11 and the weights in `models\`, and it compiles the installer if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed. CI only runs its success path; its error messages have not been run.
 
 ## How it is built
 

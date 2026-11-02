@@ -245,7 +245,7 @@ The web app takes a moment to start and every `poke` run takes a moment, because
 
 ### What Has Been Tested
 
-The workflow runs the real installer on a GitHub-hosted Windows runner: silent install, `poke` from another directory through the PATH, a `gengar.png` upload to the web app, an upgrade over the top and a silent uninstall. The wizard's pages and the browser opening can't be exercised on a headless runner, and the runner isn't a machine without developer tools.
+The workflow runs the real installer on a GitHub-hosted Windows runner: silent install, `poke` from another directory through the PATH, a `gengar.png` upload to the web app, an upgrade over the top and a silent uninstall. Setup and the uninstaller refuse to run while the web app is open. The workflow builds with `windows\build_windows.bat`, so that script's success path runs too, but not its error messages. The wizard's pages and the browser opening can't be exercised on a headless runner, and the runner isn't a machine without developer tools.
 
 ### Building It Yourself
 

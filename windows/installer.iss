@@ -13,13 +13,15 @@ AppVersion={#AppVersion}
 AppVerName=Pokemon Detector {#AppVersion}
 DefaultDirName={localappdata}\Programs\PokemonDetector
 DefaultGroupName=Pokemon Detector
+AppMutex=PokemonDetectorWebLauncher
+MinVersion=10.0
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ChangesEnvironment=yes
 WizardStyle=modern
 DisableWelcomePage=no
-DisableDirPage=no
+DisableDirPage=auto
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
 OutputDir=installer_output
@@ -34,7 +36,7 @@ Name: "desktopicon"; Description: "Create a desktop icon"; Flags: unchecked
 
 ; Files from an older version's bundle must not be left next to the new ones.
 [InstallDelete]
-Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\_internal"; Check: IsExistingInstall
 
 [Files]
 Source: "dist\PokemonDetector\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -52,6 +54,12 @@ Filename: "{app}\PokemonDetector.exe"; Description: "Launch Pokemon Detector"; F
 const
   EnvironmentKey = 'Environment';
   PathValue = 'Path';
+
+// A folder chosen in the wizard can belong to another app with its own _internal.
+function IsExistingInstall: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\PokemonDetector.exe'));
+end;
 
 function ReadUserPath(var UserPath: String): Boolean;
 begin

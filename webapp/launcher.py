@@ -5,17 +5,38 @@ Serves the Flask app on the loopback interface and opens it in the default
 browser. This is what the Windows installer's Start Menu shortcut runs.
 """
 
+import ctypes
+import ctypes.wintypes
 import os
 import socket
 import sys
 import traceback
 import webbrowser
 
-from werkzeug.serving import make_server
-
 HOST = "127.0.0.1"
 PREFERRED_PORT = 5000
 NO_BROWSER_ENV_VAR = "POKE_NO_BROWSER"
+# windows/installer.iss names this in AppMutex.
+RUNNING_MUTEX_NAME = "PokemonDetectorWebLauncher"
+
+
+def hold_running_mutex():
+    """Hold a named mutex until the process exits, on Windows.
+
+    Setup and the uninstaller refuse to run while the mutex exists, because
+    replacing or deleting the bundle under a running launcher would break it.
+    """
+    if sys.platform != "win32":
+        return
+    create_mutex = ctypes.WinDLL("kernel32").CreateMutexW
+    create_mutex.argtypes = [
+        ctypes.wintypes.LPVOID,
+        ctypes.wintypes.BOOL,
+        ctypes.wintypes.LPCWSTR,
+    ]
+    create_mutex.restype = ctypes.wintypes.HANDLE
+    if not create_mutex(None, False, RUNNING_MUTEX_NAME):
+        print("Warning: installers will not be able to tell this app is running.")
 
 
 def _listen_on(port):
@@ -63,6 +84,8 @@ def open_browser(url):
 
 def serve(app, listener):
     """Serve app on listener until interrupted, opening the browser once it listens."""
+    from werkzeug.serving import make_server
+
     server = make_server(HOST, 0, app, threaded=True, fd=listener.fileno())
     url = f"http://{HOST}:{server.port}"
     print(f"Pokemon Detector is running at {url}", flush=True)
@@ -82,12 +105,13 @@ def run():
     Returns:
         Process exit code
     """
+    hold_running_mutex()
     print("Starting Pokemon Detector, this can take a minute...", flush=True)
     # Importing webapp.app loads the model, so the message above has to come first.
     import webapp.app
 
     if webapp.app.model is None:
-        print("Pokemon Detector could not load its model (see above).", flush=True)
+        print("Pokemon Detector cannot start without its model.", flush=True)
         print("Reinstalling may fix this.", flush=True)
         return 1
 
