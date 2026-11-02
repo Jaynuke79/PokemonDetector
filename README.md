@@ -49,7 +49,7 @@ pokemonDetector/
 │
 ├── tests/                 # Test Suite
 │
-├── requirements.txt       # Pinned dependencies for the Docker image
+├── requirements.txt       # Pinned dependencies for the Docker image and Windows build
 └── pyproject.toml         # Project configuration
 ```
 
@@ -241,7 +241,7 @@ The installer isn't code signed, so Windows SmartScreen warns about it. Choose "
 - **Desktop icon** (optional, off by default)
 - The model weights and class names, so nothing else needs downloading
 
-The first prediction can take a while, because the model has to load.
+The web app takes a moment to start and every `poke` run takes a moment, because the model has to load.
 
 ### What Has Been Tested
 
