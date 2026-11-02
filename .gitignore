@@ -5,6 +5,7 @@ __pycache__/
 
 # Virtual environment
 .venv/
+.venv-win/
 env/
 venv/
 
@@ -21,6 +22,9 @@ dist/
 *.spec.bak
 *.manifest
 *.exe.log
+
+# Inno Setup
+windows/installer_output/
 
 # Node.js
 node_modules/

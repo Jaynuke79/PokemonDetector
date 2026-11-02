@@ -1,0 +1,165 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths: &installer_paths
+      - "windows/**"
+      - "cli/**"
+      - "lib/**"
+      - "webapp/**"
+      - "models/class_names.json"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - ".github/workflows/windows-installer.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *installer_paths
+
+permissions:
+  contents: read
+
+env:
+  WEIGHTS_FILE_ID: 1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-
+  WEIGHTS_SHA256: 4f82cd98fd45c6affdb85df18e02f69e83fbf6850cf3876d7244d7d199268045
+  WEIGHTS_BYTES: "351007742"
+  INNO_SETUP_VERSION: 6.7.1
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Restore cached weights
+        id: weights-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/weights
+          key: weights-${{ env.WEIGHTS_SHA256 }}
+
+      - name: Download weights
+        if: steps.weights-cache.outputs.cache-hit != 'true'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # A separate venv keeps gdown's dependencies out of the bundle.
+          python -m venv "$env:RUNNER_TEMP\gdown-venv"
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m pip install --quiet gdown==6.5.1
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\weights" | Out-Null
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m gdown $env:WEIGHTS_FILE_ID -O "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+
+      - name: Verify weights and copy them into models/
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $weights = Get-Item -LiteralPath "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+          $hash = (Get-FileHash -LiteralPath $weights.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Weights: $($weights.Length) bytes, SHA-256 $hash"
+          if ($hash -ne $env:WEIGHTS_SHA256) { throw "Weights SHA-256 is $hash, expected $env:WEIGHTS_SHA256" }
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Weights are $($weights.Length) bytes, expected $env:WEIGHTS_BYTES" }
+          Copy-Item -LiteralPath $weights.FullName -Destination models\best_model_fold1.pth
+
+      - name: Use the pinned Inno Setup version
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          function Get-InnoVersion {
+            if (-not (Test-Path -LiteralPath $iscc)) { return 'not installed' }
+            # ISCC.exe has no version resource and only reports its version while compiling.
+            $probe = Join-Path $env:RUNNER_TEMP 'inno-version-probe.iss'
+            "[Setup]`nAppName=Probe`nAppVersion=1`nDefaultDirName=Probe`nOutput=no" | Set-Content -LiteralPath $probe
+            $output = (& $iscc $probe 2>&1) -join "`n"
+            if ($output -match 'Compiler engine version: Inno Setup (\d+\.\d+\.\d+)') { return $Matches[1] }
+            throw "No version in the ISCC output: $output"
+          }
+          Write-Host "Inno Setup on the runner image: $(Get-InnoVersion)"
+          if ((Get-InnoVersion) -ne $env:INNO_SETUP_VERSION) {
+            choco install innosetup --version=$env:INNO_SETUP_VERSION --allow-downgrade --force --no-progress -y
+          }
+          $version = Get-InnoVersion
+          Write-Host "Inno Setup used for the build: $version"
+          if ($version -ne $env:INNO_SETUP_VERSION) { throw "Inno Setup is $version, expected $env:INNO_SETUP_VERSION" }
+
+      - name: Build with build_windows.bat
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmd /c "windows\build_windows.bat <NUL"
+          if ($LASTEXITCODE -ne 0) { throw "build_windows.bat exited $LASTEXITCODE" }
+
+      - name: Check the build output
+        working-directory: windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $python = '..\.venv-win\Scripts\python.exe'
+          & $python -c "import torch; assert torch.__version__ == '2.7.1+cpu', torch.__version__"
+          foreach ($exe in 'poke.exe', 'PokemonDetector.exe') {
+            $item = Get-Item -LiteralPath "dist\PokemonDetector\$exe"
+            if ($item.Length -eq 0) { throw "$exe is empty" }
+            Write-Host "$exe`: $($item.Length) bytes"
+          }
+          $weights = Get-Item -LiteralPath dist\PokemonDetector\_internal\models\best_model_fold1.pth
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Bundled weights are $($weights.Length) bytes" }
+          Get-Item -LiteralPath dist\PokemonDetector\_internal\webapp\templates\index.html | Out-Null
+          if (Test-Path -LiteralPath dist\PokemonDetector\_internal\gunicorn) { throw 'gunicorn was bundled' }
+          $size = (Get-ChildItem -LiteralPath dist\PokemonDetector -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          Write-Host ("Bundle size: {0:N0} bytes" -f $size)
+          $version = & $python -c "import tomllib; print(tomllib.load(open('../pyproject.toml', 'rb'))['project']['version'])"
+          $installer = Get-Item -LiteralPath "installer_output\PokemonDetectorSetup-$version.exe"
+          if ($installer.Length -eq 0) { throw 'The installer is empty' }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -LiteralPath "$($installer.FullName).sha256" -Encoding ascii
+          Write-Host ("Installer: {0}, {1:N0} bytes, SHA-256 {2}" -f $installer.Name, $installer.Length, $hash)
+          "INSTALLER_PATH=$($installer.FullName)" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Remove build output so only the installer can satisfy the checks
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item -LiteralPath models\best_model_fold1.pth
+          Remove-Item -LiteralPath windows\dist, windows\build -Recurse -Force
+
+      - name: Run fix_model_file.bat through each of its branches
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Assert-FixScript([string]$Expected, [int]$ExpectedExit) {
+            $output = (cmd /c "windows\fix_model_file.bat <NUL" 2>&1) -join "`n"
+            Write-Host $output
+            if ($LASTEXITCODE -ne $ExpectedExit) { throw "fix_model_file.bat exited $LASTEXITCODE, expected $ExpectedExit" }
+            if ($output -notmatch $Expected) { throw "fix_model_file.bat did not print '$Expected'" }
+          }
+          Assert-FixScript 'NO MODEL FILE FOUND' 0
+          foreach ($name in 'best_model_fold1.pth.txt', 'best_model_fold1 (1).pth') {
+            Set-Content -LiteralPath "models\$name" -Value 'stub'
+            Assert-FixScript 'SUCCESS: File renamed' 0
+            Assert-FixScript 'seems too small' 0
+            Remove-Item -LiteralPath models\best_model_fold1.pth
+          }
+
+      - name: Verify the installer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\windows\verify_installer.ps1 -Installer $env:INSTALLER_PATH -SampleImage gengar.png
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: PokemonDetectorSetup
+          path: |
+            windows/installer_output/PokemonDetectorSetup-*.exe
+            windows/installer_output/PokemonDetectorSetup-*.exe.sha256
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
