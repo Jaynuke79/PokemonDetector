@@ -1,5 +1,5 @@
 @echo off
-REM Build script for creating Windows executable
+REM Build script for the Windows executables and, if Inno Setup is installed, the installer
 REM This script should be run on a Windows machine with Python and dependencies installed
 
 echo ===================================
@@ -14,23 +14,28 @@ REM Show current directory for debugging
 echo Current directory: %CD%
 echo.
 
-REM Check if virtual environment exists
-if not exist "..\.venv" (
+REM .venv can belong to Linux when the repo is shared with WSL, so Windows keeps its own
+if not exist "..\.venv-win" (
     echo Creating virtual environment...
-    python -m venv ..\.venv
+    python -m venv ..\.venv-win
 )
 
 REM Activate virtual environment
 echo Activating virtual environment...
-call ..\.venv\Scripts\activate.bat
+call ..\.venv-win\Scripts\activate.bat
 
 REM Install dependencies
 echo.
 echo Installing dependencies...
-pip install --upgrade pip
-pip install pyinstaller
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip install timm click pillow
+python -m pip install --upgrade pip
+python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu torch==2.7.1+cpu torchvision==0.22.1+cpu
+python -m pip install -r ..\requirements.txt pyinstaller
+if %errorlevel% neq 0 (
+    echo.
+    echo Installing dependencies failed!
+    pause
+    exit /b %errorlevel%
+)
 
 REM Check if model file exists with better diagnostics
 echo.
@@ -108,10 +113,10 @@ if not exist "..\models\best_model_fold1.pth" (
 echo [OK] Model file found: best_model_fold1.pth
 echo.
 
-REM Build the executable
+REM Build the executables
 echo.
-echo Building executable...
-pyinstaller --clean poke.spec
+echo Building executables...
+python -m PyInstaller --noconfirm --clean poke.spec
 
 if %errorlevel% neq 0 (
     echo.
@@ -123,10 +128,37 @@ if %errorlevel% neq 0 (
 echo.
 echo ===================================
 echo Build completed successfully!
-echo Executable location: dist\poke.exe
+echo CLI: dist\PokemonDetector\poke.exe
+echo Web app: dist\PokemonDetector\PokemonDetector.exe
 echo ===================================
 echo.
-echo To test the executable, run:
-echo dist\poke.exe ..\gengar.png
+echo To test the CLI, run:
+echo dist\PokemonDetector\poke.exe ..\gengar.png
+echo.
+
+set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" (
+    echo To build the installer, install Inno Setup 6 from https://jrsoftware.org/isinfo.php
+    echo and run this script again.
+    echo.
+    pause
+    exit /b 0
+)
+
+echo Compiling the installer...
+for /f "usebackq delims=" %%V in (`python -c "import tomllib; print(tomllib.load(open('../pyproject.toml', 'rb'))['project']['version'])"`) do set "APP_VERSION=%%V"
+if not defined APP_VERSION (
+    echo Could not read the version from pyproject.toml. This step needs Python 3.11 or newer.
+    pause
+    exit /b 1
+)
+"%ISCC%" /DAppVersion=%APP_VERSION% installer.iss
+if %errorlevel% neq 0 (
+    echo.
+    echo Compiling the installer failed!
+    pause
+    exit /b %errorlevel%
+)
+echo Installer location: installer_output\PokemonDetectorSetup-%APP_VERSION%.exe
 echo.
 pause

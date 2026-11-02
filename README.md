@@ -8,10 +8,10 @@ Originally built as a class project, this repository demonstrates modern project
 
 ## 📦 Project Outputs
 
-This project contains 4 outputs: a linux cli tool, a windows cli tool, a local docker web-app, and an online vercel demo.
+This project contains 4 outputs: a linux cli tool, a windows installer, a local docker web-app, and an online vercel demo.
 
 1. **Linux CLI Tool** (`poke` command) - Command-line interface for quick predictions
-2. **Windows CLI Tool** - Build `poke.exe` with the files in [windows/](windows/)
+2. **Windows Installer** - Installs the CLI and the web app (see [Windows Installer](#-windows-installer))
 3. **Docker Web Application** - Flask-based web interface with image upload, run locally in a Docker container
 4. **Vercel Demo** - Online demo hosted on Vercel (see [demo-vercel/](demo-vercel/))
 
@@ -43,7 +43,7 @@ pokemonDetector/
 │   ├── best_model_fold1.pth      # Download required
 │   └── class_names.json          # Included in the repository
 │
-├── windows/               # Windows Executable Build
+├── windows/               # Windows Executable and Installer Build
 │
 ├── demo-vercel/           # Vercel Demo (deployed on its own)
 │
@@ -170,7 +170,7 @@ The tests use a stub model and never load the real weights, so they don't need t
 
 ## 🏗️ Architecture
 
-The CLI, web application and Windows executable share the same core detection logic from `lib/detector_core.py`:
+The CLI, web application and Windows installer share the same core detection logic from `lib/detector_core.py`:
 
 - **Model**: ConvNeXt base architecture (via `timm` library)
 - **Input**: Images resized to 224x224, normalized with ImageNet stats
@@ -216,44 +216,46 @@ The CLI, web application and Windows executable share the same core detection lo
 - Download the weights from [Google Drive](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
 - Place the file in the `models/` directory
 - To keep the model files elsewhere, point the CLI and web app at that directory with the `POKE_MODELS_DIR` environment variable
-- The CLI and web app look in `POKE_MODELS_DIR`, then the Windows executable's bundle, then `models/` in the project root. A `models/` in the current directory is not used
+- The CLI and web app look in `POKE_MODELS_DIR`, then the Windows install's bundle, then `models/` in the project root. A `models/` in the current directory is not used
 - After a non-editable install such as `pip install .`, the project root has no models, so set `POKE_MODELS_DIR` or pass `--weights` and `--class-names-path`
 - The model is trained on 149 Generation 1 Pokemon. Nidoran♀ and Nidoran♂ are not among its classes
 
 ---
 
-## 💻 Windows Executable Distribution
+## 💻 Windows Installer
 
-Want to share this with users on Windows who don't have Python? Build a standalone executable!
+`PokemonDetectorSetup-<version>.exe` installs the CLI and the web app on Windows 10 or later (64-bit). Python is not required, and neither are administrator rights.
 
-### For End Users (No Python Required!)
+### Getting the Installer
 
-Once you have a built `poke.exe`, run it from the command line: `poke.exe your_image.png`
+GitHub Actions builds the installer. Open a successful [Windows installer run](https://github.com/Jaynuke79/PokemonDetector/actions/workflows/windows-installer.yml) while signed in to GitHub and download the `PokemonDetectorSetup` artifact, which holds the installer and its SHA-256. Artifacts expire after 7 days, and you can start a new run with "Run workflow". There is no published release yet.
 
-To get one, build it as shown below.
+The installer isn't code signed, so Windows SmartScreen warns about it. Choose "More info", then "Run anyway".
 
-### For Developers (Building the Executable)
+### What It Installs
 
-Build a standalone Windows executable that includes all dependencies. Download the model weights into `models/` first, because the build bundles them:
+- **Location**: `%LOCALAPPDATA%\Programs\PokemonDetector` by default, for the current user only
+- **Pokemon Detector** in the Start Menu: starts the web app on `127.0.0.1` and opens it in your browser. It uses port 5000, or another free port if that one is taken. Close its console window to stop it
+- **Pokemon Detector CLI** in the Start Menu: opens a console where you can run `poke your_image.png`
+- **PATH** (optional, on by default): lets `poke` run from any new terminal. Uninstalling removes the entry
+- **Desktop icon** (optional, off by default)
+- The model weights and class names, so nothing else needs downloading
+
+The first prediction can take a while, because the model has to load.
+
+### What Has Been Tested
+
+The workflow runs the real installer on a GitHub-hosted Windows runner: silent install, `poke` from another directory through the PATH, a `gengar.png` upload to the web app, an upgrade over the top and a silent uninstall. The wizard's pages and the browser opening can't be exercised on a headless runner, and the runner isn't a machine without developer tools.
+
+### Building It Yourself
+
+Download the model weights into `models/` first, because the build bundles them. Then, on Windows with Python 3.11:
 
 ```batch
-# On Windows, run:
 windows\build_windows.bat
 ```
 
-This creates `windows\dist\poke.exe` (estimated ~500MB-1GB, includes PyTorch).
-
-These steps are based on the build files; the executable hasn't been built and tested on Windows yet.
-
-**Documentation:**
-- **[windows/DISTRIBUTION_PACKAGE.md](windows/DISTRIBUTION_PACKAGE.md)** - How to package and distribute
-
-**Features (based on the build files):**
-- ✅ Single executable file
-- ✅ No Python installation required
-- ✅ Includes all dependencies (PyTorch, timm, etc.)
-- ✅ Includes the model weights and class names
-- ✅ Targets Windows 10 or later
+This creates `windows\dist\PokemonDetector\` and, if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed, the installer in `windows\installer_output\`. See [windows/DISTRIBUTION_PACKAGE.md](windows/DISTRIBUTION_PACKAGE.md).
 
 ---
 

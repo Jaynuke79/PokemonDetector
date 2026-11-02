@@ -17,3 +17,14 @@ def test_dockerfile_cpu_pin_matches_requirements(package):
     assert re.findall(rf"^{package}==([^\s;]+)", requirements, re.MULTILINE) == [
         cpu_pin[1]
     ]
+
+
+@pytest.mark.parametrize("package", ["torch", "torchvision"])
+def test_windows_workflow_cpu_pin_matches_dockerfile(package):
+    dockerfile = (REPO_ROOT / "deployment" / "Dockerfile").read_text()
+    workflow = (
+        REPO_ROOT / ".github" / "workflows" / "windows-installer.yml"
+    ).read_text()
+    pin = rf"\b{package}==\S+\+cpu\b"
+
+    assert re.findall(pin, workflow) == re.findall(pin, dockerfile)

@@ -1,0 +1,143 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/windows-installer
+    paths: &installer_paths
+      - "windows/**"
+      - "cli/**"
+      - "lib/**"
+      - "webapp/**"
+      - "models/class_names.json"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - ".github/workflows/windows-installer.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *installer_paths
+
+permissions:
+  contents: read
+
+env:
+  WEIGHTS_FILE_ID: 1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-
+  WEIGHTS_SHA256: 4f82cd98fd45c6affdb85df18e02f69e83fbf6850cf3876d7244d7d199268045
+  WEIGHTS_BYTES: "351007742"
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Restore cached weights
+        id: weights-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/weights
+          key: weights-${{ env.WEIGHTS_SHA256 }}
+
+      - name: Download weights
+        if: steps.weights-cache.outputs.cache-hit != 'true'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # A separate venv keeps gdown's dependencies out of the bundle.
+          python -m venv "$env:RUNNER_TEMP\gdown-venv"
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m pip install --quiet gdown==6.5.1
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\weights" | Out-Null
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m gdown $env:WEIGHTS_FILE_ID -O "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+
+      - name: Verify weights and copy them into models/
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $weights = Get-Item -LiteralPath "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+          $hash = (Get-FileHash -LiteralPath $weights.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Weights: $($weights.Length) bytes, SHA-256 $hash"
+          if ($hash -ne $env:WEIGHTS_SHA256) { throw "Weights SHA-256 is $hash, expected $env:WEIGHTS_SHA256" }
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Weights are $($weights.Length) bytes, expected $env:WEIGHTS_BYTES" }
+          Copy-Item -LiteralPath $weights.FullName -Destination models\best_model_fold1.pth
+
+      - name: Install build dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu torch==2.7.1+cpu torchvision==0.22.1+cpu
+          python -m pip install -r requirements.txt pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.9
+          python -m pip check
+          python -c "import torch; assert torch.__version__ == '2.7.1+cpu', torch.__version__"
+
+      - name: Build with PyInstaller
+        working-directory: windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m PyInstaller --noconfirm --clean poke.spec
+          foreach ($exe in 'poke.exe', 'PokemonDetector.exe') {
+            $item = Get-Item -LiteralPath "dist\PokemonDetector\$exe"
+            if ($item.Length -eq 0) { throw "$exe is empty" }
+            Write-Host "$exe`: $($item.Length) bytes"
+          }
+          $weights = Get-Item -LiteralPath dist\PokemonDetector\_internal\models\best_model_fold1.pth
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Bundled weights are $($weights.Length) bytes" }
+          Get-Item -LiteralPath dist\PokemonDetector\_internal\webapp\templates\index.html | Out-Null
+          if (Test-Path -LiteralPath dist\PokemonDetector\_internal\gunicorn) { throw 'gunicorn was bundled' }
+          $size = (Get-ChildItem -LiteralPath dist\PokemonDetector -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          Write-Host ("Bundle size: {0:N0} bytes" -f $size)
+          python check_bundled_runtime.py dist\PokemonDetector
+
+      - name: Compile the installer
+        working-directory: windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $iscc = Get-Command ISCC.exe -CommandType Application -ErrorAction SilentlyContinue
+          $isccPath = if ($iscc) { $iscc.Source } else { "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path -LiteralPath $isccPath)) {
+            choco install innosetup --version=6.7.1 --no-progress -y
+          }
+          Get-Item -LiteralPath $isccPath | Out-Null
+          $version = python -c "import tomllib; print(tomllib.load(open('../pyproject.toml', 'rb'))['project']['version'])"
+          if (-not $version) { throw 'Could not read the version from pyproject.toml' }
+          & $isccPath /Qp "/DAppVersion=$version" installer.iss
+          $installer = Get-Item -LiteralPath "installer_output\PokemonDetectorSetup-$version.exe"
+          if ($installer.Length -eq 0) { throw 'The installer is empty' }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -LiteralPath "$($installer.FullName).sha256" -Encoding ascii
+          Write-Host ("Installer: {0}, {1:N0} bytes, SHA-256 {2}" -f $installer.Name, $installer.Length, $hash)
+          "INSTALLER_PATH=$($installer.FullName)" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Remove build output so only the installer can satisfy the checks
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item -LiteralPath models\best_model_fold1.pth
+          Remove-Item -LiteralPath windows\dist, windows\build -Recurse -Force
+
+      - name: Verify the installer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\windows\verify_installer.ps1 -Installer $env:INSTALLER_PATH -SampleImage gengar.png
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: PokemonDetectorSetup
+          path: |
+            windows/installer_output/PokemonDetectorSetup-*.exe
+            windows/installer_output/PokemonDetectorSetup-*.exe.sha256
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error

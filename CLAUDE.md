@@ -6,11 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PokemonDetector is a Pokemon detection system with a PyTorch-based ConvNeXt model to identify Pokemon from images.
 
-**The project has 2 functional outputs and 1 deployment method:**
+**The project has 2 functional outputs and 2 deployment methods:**
 
 1. **CLI Tool** (`poke` command) - Command-line interface for quick predictions
 2. **Web Application** - Flask-based web interface with image upload
 3. **Docker Container** - Containerized deployment method for the web application
+4. **Windows Installer** - `windows/installer.iss` packages the CLI and web app; built and tested by `.github/workflows/windows-installer.yml`
 
 All outputs share the same core detection logic from `lib/detector_core.py`.
 
@@ -128,6 +129,7 @@ docker compose down
 
 **Web Application (`webapp/app.py`):**
 - Imports functions from `lib.detector_core`
+- `webapp/launcher.py` is the Windows entry point: serves `app` on 127.0.0.1 and opens the browser
 - Flask server with routes: `/` (upload form), `/predict` (API), `/health` (status)
 - Loads model globally on startup
 - Accepts image uploads (max 16MB, formats: png/jpg/jpeg/gif/bmp)

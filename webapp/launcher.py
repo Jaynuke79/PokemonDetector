@@ -1,0 +1,111 @@
+"""
+Desktop launcher for the web application.
+
+Serves the Flask app on the loopback interface and opens it in the default
+browser. This is what the Windows installer's Start Menu shortcut runs.
+"""
+
+import os
+import socket
+import sys
+import traceback
+import webbrowser
+
+from werkzeug.serving import make_server
+
+HOST = "127.0.0.1"
+PREFERRED_PORT = 5000
+NO_BROWSER_ENV_VAR = "POKE_NO_BROWSER"
+
+
+def _listen_on(port):
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if sys.platform == "win32":
+            # Otherwise bind succeeds on a port held by a process that set
+            # SO_REUSEADDR, and requests can reach either process.
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        listener.bind((HOST, port))
+        listener.listen()
+    except OSError:
+        listener.close()
+        raise
+    return listener
+
+
+def open_listener(preferred_port):
+    """Listen on the loopback interface, on any free port if the preferred one fails.
+
+    Any bind error counts as a failure because Windows reports ports it has
+    reserved, as Hyper-V and WSL do, with a permission error, not "in use".
+
+    Returns:
+        A listening socket bound to 127.0.0.1
+    """
+    try:
+        return _listen_on(preferred_port)
+    except OSError:
+        print(f"Port {preferred_port} is not available, using another port.")
+        return _listen_on(0)
+
+
+def open_browser(url):
+    """Open url in the default browser unless NO_BROWSER_ENV_VAR is set."""
+    if os.environ.get(NO_BROWSER_ENV_VAR):
+        return
+    try:
+        opened = webbrowser.open(url)
+    except webbrowser.Error:
+        opened = False
+    if not opened:
+        print(f"Could not open a browser. Please go to {url}", flush=True)
+
+
+def serve(app, listener):
+    """Serve app on listener until interrupted, opening the browser once it listens."""
+    server = make_server(HOST, 0, app, threaded=True, fd=listener.fileno())
+    url = f"http://{HOST}:{server.port}"
+    print(f"Pokemon Detector is running at {url}", flush=True)
+    print("Close this window to stop it.", flush=True)
+    open_browser(url)
+    server.serve_forever()
+
+
+def _pause_if_interactive():
+    if sys.stdin is not None and sys.stdin.isatty():
+        input("Press Enter to close this window.")
+
+
+def run():
+    """Load the model and serve the web app.
+
+    Returns:
+        Process exit code
+    """
+    print("Starting Pokemon Detector, this can take a minute...", flush=True)
+    # Importing webapp.app loads the model, so the message above has to come first.
+    import webapp.app
+
+    if webapp.app.model is None:
+        print("Pokemon Detector could not load its model (see above).", flush=True)
+        print("Reinstalling may fix this.", flush=True)
+        return 1
+
+    with open_listener(PREFERRED_PORT) as listener:
+        serve(webapp.app.app, listener)
+    return 0
+
+
+def main():
+    try:
+        exit_code = run()
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        exit_code = 1
+    if exit_code != 0:
+        _pause_if_interactive()
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())
