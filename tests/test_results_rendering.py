@@ -102,6 +102,22 @@ def test_predictions_are_rendered_as_text(page):
     assert re.search(r"\.textContent\s*=\s*`[^`]*prediction\.percentage", source)
 
 
+@pytest.mark.parametrize("page", RESULT_PAGES)
+def test_page_links_to_its_source_code(page):
+    footer = re.search(
+        r'<footer class="source-link">\s*(<a [^>]*>[^<]*</a>)\s*</footer>',
+        read_page(page),
+    )
+
+    assert footer, (
+        "AGPL-3.0 section 13: users of the hosted app must be offered its source"
+    )
+    assert footer.group(1) == (
+        '<a href="https://github.com/Jaynuke79/PokemonDetector" target="_blank" '
+        'rel="noopener noreferrer">Source code (AGPL-3.0)</a>'
+    )
+
+
 def test_results_rendering_matches_between_pages():
     assert_rendering_matches(read_page(WEBAPP_PAGE), read_page(DEMO_PAGE))
 

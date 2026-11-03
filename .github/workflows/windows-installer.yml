@@ -13,6 +13,9 @@ on:
       - "models/class_names.json"
       - "pyproject.toml"
       - "requirements.txt"
+      - "LICENSE"
+      - "NOTICE"
+      - "THIRD_PARTY_NOTICES.md"
       - ".github/workflows/windows-installer.yml"
   pull_request:
     branches:

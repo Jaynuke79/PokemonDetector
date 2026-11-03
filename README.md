@@ -50,7 +50,10 @@ pokemonDetector/
 ├── tests/                 # Test Suite
 │
 ├── requirements.txt       # Pinned dependencies for the Docker image and Windows build
-└── pyproject.toml         # Project configuration
+├── pyproject.toml         # Project configuration
+├── LICENSE                # GNU AGPL v3
+├── NOTICE                 # Copyright notice
+└── THIRD_PARTY_NOTICES.md # Licenses of the components the Windows installer bundles
 ```
 
 ---
@@ -240,12 +243,13 @@ The installer isn't code signed, so Windows SmartScreen warns about it. Choose "
 - **PATH** (optional, on by default): lets `poke` run from any new terminal. Uninstalling removes the entry
 - **Desktop icon** (optional, off by default)
 - The model weights and class names, so nothing else needs downloading
+- `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES.md` in the install folder. Setup shows the license first, and you must accept it to install
 
 The web app takes a moment to start and every `poke` run takes a moment, because the model has to load.
 
 ### What Has Been Tested
 
-The workflow runs the real installer on a GitHub-hosted Windows runner: silent install, `poke` from another directory through the PATH, a `gengar.png` upload to the web app, an upgrade over the top and a silent uninstall. Setup and the uninstaller refuse to run while the web app is open. The workflow builds with `windows\build_windows.bat`, so that script's success path runs too, but not its error messages. The wizard's pages and the browser opening can't be exercised on a headless runner, and the runner isn't a machine without developer tools.
+The workflow runs the real installer on a GitHub-hosted Windows runner: silent install, `poke` from another directory through the PATH, a `gengar.png` upload to the web app, an upgrade over the top and a silent uninstall. Setup and the uninstaller refuse to run while the web app is open. The workflow builds with `windows\build_windows.bat`, so that script's success path runs too, but not its error messages. The wizard's pages, including the license page, and the browser opening can't be exercised on a headless runner, and the runner isn't a machine without developer tools.
 
 ### Building It Yourself
 
@@ -256,6 +260,16 @@ windows\build_windows.bat
 ```
 
 This creates `windows\dist\PokemonDetector\` and, if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed, the installer in `windows\installer_output\`. See [windows/DISTRIBUTION_PACKAGE.md](windows/DISTRIBUTION_PACKAGE.md).
+
+---
+
+## 📄 License
+
+Copyright (C) 2025-2026 Jayden Alonzo-Estrada
+
+The code is licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You may use, modify and share it under that license; if you run a modified version as a network service, you must offer its users the source code of that version.
+
+The license covers this repository's code. It does not cover the images the model weights were trained on. Pokémon names are trademarks of Nintendo, Game Freak and Creatures. The Windows installer bundles third-party components under their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
