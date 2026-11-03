@@ -28,7 +28,7 @@ These are the packages `windows\build_windows.bat` installs for the bundle: `tor
 | pillow | 13.0.0 | MIT-CMU |
 | PyYAML | 6.0.2 | MIT |
 | requests | 2.32.4 | Apache-2.0 |
-| safetensors | 0.5.3 | Apache-2.0 (metadata gives only the classifier; the package ships no license file) |
+| safetensors | 0.5.3 | Metadata states only "Apache Software License", with no version and no license file |
 | sympy | 1.14.0 | BSD-3-Clause |
 | timm | 1.0.15 | Apache-2.0 |
 | torch | 2.7.1+cpu | BSD-3-Clause, plus the bundled components listed in its `NOTICE` (see below) |
@@ -43,7 +43,8 @@ The build environment also installs setuptools 84.2.1 (MIT), a dependency of PyI
 ## Native libraries inside those packages
 
 - **torch** ships compiled third-party code, such as libuv (`uv.dll`) and FBGEMM, whose licenses are in the `LICENSE` and `NOTICE` files of the torch wheel. It also ships `asmjit.dll`, `libiomp5md.dll` and `libiompstubs5md.dll`, which those files do not mention, so their licenses were not verified.
-- **numpy** ships OpenBLAS (BSD-3-Clause), LAPACK (BSD-3-Clause-Open-MPI) and the GCC runtime library (GPL-3.0-or-later WITH GCC-exception-3.1) in `libscipy_openblas*.dll`, as its license metadata states.
+- **numpy**'s own binaries include lapack-lite (BSD-3-Clause), dragon4 (MIT) and libdivide (Zlib), as its license metadata states.
+- **numpy** also ships OpenBLAS (BSD-3-Clause), LAPACK (BSD-3-Clause-Open-MPI) and the GCC runtime library (GPL-3.0-or-later WITH GCC-exception-3.1) in `libscipy_openblas*.dll`, as its license metadata states.
 - **pillow** ships libjpeg, libpng, libwebp, zlib and other image libraries. Their licenses are in the `LICENSE` file of the pillow wheel.
 
 ## Components not described by package metadata
