@@ -268,6 +268,7 @@ class MainWindow(QMainWindow):
         self._thread.wait()
 
     def closeEvent(self, event):
+        self.hide()
         self.shutdown()
         super().closeEvent(event)
 
