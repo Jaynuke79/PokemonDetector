@@ -10,13 +10,39 @@ import argparse
 import faulthandler
 import sys
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QApplication, QSplashScreen
 
-from desktop.window import APP_NAME, MainWindow
+from desktop import APP_NAME
 
 SELF_TEST_TIMEOUT_MS = 10 * 60 * 1000
 SCREENSHOT_SETTLE_MS = 250
+SPLASH_SIZE = QSize(360, 120)
+
+
+def load_window_class():
+    # desktop.window imports torch, which takes seconds and has to happen on
+    # the main thread (see desktop/worker.py), so main() shows a splash first.
+    from desktop.window import MainWindow
+
+    return MainWindow
+
+
+def show_splash(app):
+    ratio = app.devicePixelRatio()
+    pixmap = QPixmap(SPLASH_SIZE * ratio)
+    pixmap.setDevicePixelRatio(ratio)
+    palette = app.palette()
+    pixmap.fill(palette.window().color())
+    splash = QSplashScreen(pixmap)
+    splash.setAccessibleName(f"Starting {APP_NAME}")
+    splash.showMessage(
+        f"Starting {APP_NAME}…", Qt.AlignCenter, palette.windowText().color()
+    )
+    splash.show()
+    app.processEvents()
+    return splash
 
 
 def parse_args(argv):
@@ -47,7 +73,7 @@ def run_self_test(app, image_path, screenshot_path=None, models_dir=None):
     Returns:
         0 if the image was classified (and the screenshot saved), else 1
     """
-    window = MainWindow(models_dir=models_dir, show_dialogs=False)
+    window = load_window_class()(models_dir=models_dir, show_dialogs=False)
     exit_codes = []
 
     def finish(code):
@@ -116,8 +142,10 @@ def main(argv=None):
     if args.self_test:
         report_crashes_while_redirected()
         return run_self_test(app, args.self_test, args.screenshot)
-    window = MainWindow()
+    splash = show_splash(app)
+    window = load_window_class()()
     window.show()
+    splash.finish(window)
     window.start()
     return app.exec()
 

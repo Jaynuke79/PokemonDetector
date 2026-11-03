@@ -177,16 +177,8 @@ jobs:
 
           Assert-Gengar (Invoke-App 'self-test' @('--self-test', 'gengar.png')) 'self-test'
 
-          $env:QT_QPA_PLATFORM = $null
-          $platform = 'windows'
           $shot = Join-Path $outDir 'desktop-window.png'
-          $run = Invoke-App 'screenshot-windows' @('--self-test', 'gengar.png', '--screenshot', $shot)
-          if ($run.ExitCode -ne 0) {
-            Write-Host "::warning::The window could not run on the default Windows platform (exit $($run.ExitCode)), retrying offscreen"
-            $platform = 'offscreen'
-            $env:QT_QPA_PLATFORM = 'offscreen'
-            $run = Invoke-App 'screenshot-offscreen' @('--self-test', 'gengar.png', '--screenshot', $shot)
-          }
+          $run = Invoke-App 'screenshot' @('--self-test', 'gengar.png', '--screenshot', $shot)
           Assert-Gengar $run 'screenshot'
           Assert-Screenshot $shot
 
@@ -195,7 +187,6 @@ jobs:
           Assert-Gengar (Invoke-App 'screenshot-150-percent' @('--self-test', 'gengar.png', '--screenshot', $shot150)) 'screenshot at 150%'
           Assert-Screenshot $shot150
 
-          "Screenshots taken on the Qt ``$platform`` platform." | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
           "DESKTOP_OUTPUT=$outDir" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
 
       - name: Show application crash events

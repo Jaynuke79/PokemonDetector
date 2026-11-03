@@ -381,18 +381,18 @@ def test_screenshot_needs_self_test(capsys):
     assert "--screenshot needs --self-test" in capsys.readouterr().err
 
 
-def test_importing_the_app_imports_torch_on_the_main_thread():
-    # conftest imports torch first, so only a fresh interpreter shows whether
-    # the app would leave it to be imported first on the worker thread.
+def imports_torch(module):
     result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "import sys, desktop.main; print('torch' in sys.modules)",
-        ],
+        [sys.executable, "-c", f"import sys, {module}; print('torch' in sys.modules)"],
         capture_output=True,
         text=True,
         check=True,
     )
+    return result.stdout.strip() == "True"
 
-    assert result.stdout.strip() == "True"
+
+def test_torch_is_imported_on_the_main_thread_after_the_splash():
+    # conftest imports torch first, so only a fresh interpreter shows whether
+    # the app would leave it to be imported first on the worker thread.
+    assert not imports_torch("desktop.main")
+    assert imports_torch("desktop.window")

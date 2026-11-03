@@ -83,7 +83,9 @@ uv run --extra desktop poke-gui --self-test gengar.png --screenshot window.png
 ```
 
 It reads the weights from `models/` like the CLI (see `default_models_dir()`).
-On Linux without a display, set `QT_QPA_PLATFORM=offscreen`.
+It ran on WSLg's Wayland display without extra setup. On Linux without a
+display, set `QT_QPA_PLATFORM=offscreen`. A small "Starting Pokemon Detector…"
+splash shows while torch and timm import, which took about 15 seconds in WSL.
 
 Tests: `uv run --extra test --extra desktop pytest`. Without the `desktop`
 extra installed, `tests/test_desktop.py` is reported as skipped.
@@ -96,22 +98,32 @@ hand once it is on main. Each run uploads, for 7 days:
 
 - `PokemonDetectorDesktop-prototype`: the zipped onedir build. Unzip it and run
   `PokemonDetectorDesktop.exe`.
+
+The exe is a windowed app, so a terminal does not wait for it and `--self-test`
+prints nothing there unless its output is redirected. In PowerShell:
+
+```powershell
+$p = Start-Process .\PokemonDetectorDesktop.exe -ArgumentList '--self-test', 'gengar.png' `
+  -Wait -PassThru -NoNewWindow -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+$p.ExitCode; Get-Content out.txt, err.txt
+```
 - `desktop-screenshots`: the window after classifying `gengar.png`, at 100% and
   at 150% scaling, plus the output of each run.
 
 ### Measured size
 
 From the onedir build in CI (PyInstaller 6.22.3, PySide6-Essentials 6.12.0,
-torch 2.7.1+cpu, Python 3.11):
+torch 2.7.1+cpu, Python 3.11). The totals vary by a few hundred bytes between
+builds:
 
 | Part | MB | Bytes |
 | --- | ---: | ---: |
-| Whole bundle | 796.1 | 834,748,441 |
+| Whole bundle | 796.1 | 834,748,811 |
 | Qt (PySide6 + shiboken6) | 41.8 | 43,847,576 |
 | torch + torchvision | 309.7 | 324,763,891 |
 | Model weights | 334.7 | 351,007,742 |
 
-The zipped artifact is 476.1 MB (499,200,197 bytes). Compared with the current
+The zipped artifact is 476.1 MB (499,201,866 bytes). Compared with the current
 installer bundle (818,372,831 bytes), the desktop bundle drops Flask, Werkzeug
 and the CLI and adds Qt.
 

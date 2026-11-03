@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop import APP_NAME
 from desktop.worker import (
     IMAGE_EXTENSIONS,
     TOP_K,
@@ -40,7 +41,6 @@ from desktop.worker import (
     unsupported_file_error,
 )
 
-APP_NAME = "Pokemon Detector"
 FILE_DIALOG_FILTER = (
     "Images (" + " ".join(f"*.{extension}" for extension in IMAGE_EXTENSIONS) + ")"
 )
