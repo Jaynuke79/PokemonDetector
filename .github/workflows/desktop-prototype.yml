@@ -198,6 +198,14 @@ jobs:
           "Screenshots taken on the Qt ``$platform`` platform." | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
           "DESKTOP_OUTPUT=$outDir" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
 
+      - name: Show application crash events
+        if: failure()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $events = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1001, 1026 } -MaxEvents 10 -ErrorAction SilentlyContinue
+          if (-not $events) { Write-Host 'No application crash events'; exit 0 }
+          $events | ForEach-Object { Write-Host "--- $($_.TimeCreated) event $($_.Id)`n$($_.Message)" }
+
       - name: Zip the prototype
         working-directory: windows/dist
         run: |

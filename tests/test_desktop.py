@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 
@@ -377,3 +379,20 @@ def test_screenshot_needs_self_test(capsys):
 
     assert exit_info.value.code == 2
     assert "--screenshot needs --self-test" in capsys.readouterr().err
+
+
+def test_importing_the_app_imports_torch_on_the_main_thread():
+    # conftest imports torch first, so only a fresh interpreter shows whether
+    # the app would leave it to be imported first on the worker thread.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys, desktop.main; print('torch' in sys.modules)",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == "True"

@@ -11,6 +11,10 @@ from PIL import Image
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtGui import QImage
 
+# torch must be imported on the main thread: importing it first on a QThread
+# and then running the model there corrupted the heap on Linux and Windows.
+from lib import detector_core
+
 MODEL_ARCHITECTURE = "convnext_base"
 WEIGHTS_FILENAME = "best_model_fold1.pth"
 CLASS_NAMES_FILENAME = "class_names.json"
@@ -91,9 +95,6 @@ class DetectorWorker(QObject):
 
     @Slot()
     def load(self):
-        # Importing torch takes seconds, so it happens here, off the UI thread.
-        from lib import detector_core
-
         models_dir = self._models_dir or detector_core.default_models_dir()
         try:
             weights, class_names_path = model_file_paths(models_dir)
@@ -113,7 +114,6 @@ class DetectorWorker(QObject):
             )
         else:
             self._detector = (
-                detector_core,
                 model,
                 detector_core.get_transform(),
                 device,
@@ -131,7 +131,7 @@ class DetectorWorker(QObject):
             )
             self.classify_failed.emit(error.title, error.message)
             return
-        detector_core, model, transform, device, class_names = self._detector
+        model, transform, device, class_names = self._detector
         try:
             preview = load_preview(path)
             predictions = detector_core.predict_image(

@@ -7,6 +7,7 @@ through the window and exit, which is how CI checks a built bundle.
 """
 
 import argparse
+import faulthandler
 import sys
 
 from PySide6.QtCore import QTimer
@@ -97,11 +98,23 @@ def run_self_test(app, image_path, screenshot_path=None, models_dir=None):
     return exit_codes[0] if exit_codes else 1
 
 
+def report_crashes_while_redirected():
+    """Keep self-test output that a crash would otherwise lose in the buffer.
+
+    A windowed exe has no stdout or stderr unless they are redirected.
+    """
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(line_buffering=True)
+    if sys.stderr is not None and not faulthandler.is_enabled():
+        faulthandler.enable(all_threads=True)
+
+
 def main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName(APP_NAME)
     if args.self_test:
+        report_crashes_while_redirected()
         return run_self_test(app, args.self_test, args.screenshot)
     window = MainWindow()
     window.show()
