@@ -6,6 +6,7 @@ Provides a web interface for uploading images and getting Pokemon predictions.
 
 from flask import Flask, jsonify, render_template, request
 from PIL import Image
+from werkzeug.exceptions import RequestEntityTooLarge
 
 # Import core detection functions
 from lib.detector_core import (
@@ -26,6 +27,7 @@ UPLOAD_IMAGE_FORMATS = ("PNG", "JPEG", "GIF", "BMP")
 MAX_UPLOAD_PIXELS = 50_000_000
 IMAGE_TOO_LARGE_RESPONSE = {"error": "Image dimensions are too large"}, 413
 UNREADABLE_IMAGE_RESPONSE = {"error": "File could not be read as an image"}, 400
+UPLOAD_TOO_LARGE_MESSAGE = "File is too large. The maximum upload size is 16MB."
 
 # Global variables for model components
 class_names = None
@@ -88,10 +90,18 @@ if not initialize_model():
     print(f"2. The class_names.json file is in {default_models_dir()}")
 
 
+@app.errorhandler(RequestEntityTooLarge)
+def upload_too_large(_error):
+    """Answer uploads over MAX_CONTENT_LENGTH in the /predict JSON error shape."""
+    return jsonify({"error": UPLOAD_TOO_LARGE_MESSAGE}), 413
+
+
 @app.route("/")
 def index():
     """Render the main page."""
-    return render_template("index.html")
+    return render_template(
+        "index.html", upload_too_large_message=UPLOAD_TOO_LARGE_MESSAGE
+    )
 
 
 @app.route("/health")
@@ -126,22 +136,20 @@ def predict():
 
     try:
         with Image.open(file.stream, formats=UPLOAD_IMAGE_FORMATS) as image:
-            pixel_count = image.width * image.height
+            if image.width * image.height > MAX_UPLOAD_PIXELS:
+                return IMAGE_TOO_LARGE_RESPONSE
+            image.load()
     except Image.DecompressionBombError:
         return IMAGE_TOO_LARGE_RESPONSE
     except OSError:
+        app.logger.warning("Could not decode upload", exc_info=True)
         return UNREADABLE_IMAGE_RESPONSE
-    if pixel_count > MAX_UPLOAD_PIXELS:
-        return IMAGE_TOO_LARGE_RESPONSE
     file.stream.seek(0)
 
     try:
         results = predict_image(
             file.stream, model, transform, device, class_names, topk=5
         )
-    except OSError:
-        app.logger.warning("Could not decode upload", exc_info=True)
-        return UNREADABLE_IMAGE_RESPONSE
     except Exception:
         app.logger.exception("Prediction failed")
         return jsonify({"error": "Prediction failed"}), 500

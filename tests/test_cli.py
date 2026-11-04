@@ -91,3 +91,41 @@ def test_missing_weights_is_a_usage_error(run_cli, tmp_path):
     result = run_cli(weights=tmp_path / "missing.pth")
 
     assert_usage_error(result, "does not exist")
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"not an image", b"\x89PNG\r\n\x1a\n" + b"\x00" * 40],
+    ids=["text", "truncated-png"],
+)
+def test_unreadable_image_exits_nonzero_without_a_traceback(run_cli, tmp_path, data):
+    image = tmp_path / "not-an-image.png"
+    image.write_bytes(data)
+
+    result = run_cli("--topk", "1", image=image)
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "Could not read image:" in result.stderr
+    assert "Class Index:" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("contents", "expected_in_stderr"),
+    [
+        (b"not json", "is not valid JSON"),
+        (b"\xff\xfe\x00garbage", "is not valid JSON"),
+        (b"{}", "must contain a JSON list of class names"),
+        (b'"bulbasaur"', "must contain a JSON list of class names"),
+        (b"5", "must contain a JSON list of class names"),
+        (b"[1, 2, 3]", "must contain a JSON list of class names"),
+    ],
+    ids=["text", "binary", "object", "string", "number", "non-string-names"],
+)
+def test_malformed_class_names_is_a_usage_error(
+    run_cli, tmp_path, contents, expected_in_stderr
+):
+    names = tmp_path / "class_names.json"
+    names.write_bytes(contents)
+
+    assert_usage_error(run_cli(names=names), expected_in_stderr)
