@@ -4,15 +4,15 @@ This directory contains the pre-trained model weights and class names for Pokemo
 
 ## Required Files
 
-1. **best_model_fold1.pth** - Pre-trained ConvNeXt model weights (151 Pokemon classes, Gen1)
-2. **class_names.json** - JSON file mapping class indices to Pokemon names
+1. **best_model_fold1.pth** - Pre-trained ConvNeXt model weights (149 Gen1 classes; Nidoran♀ and Nidoran♂ are not among them). Download required.
+2. **class_names.json** - JSON list of the 149 class names, in class-index order. Tracked in git.
 
 ## Download
 
-Download the model file from Google Drive:
+Download the weights from Google Drive:
 [https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-)
 
-Place both files in this directory:
+Place the weights next to `class_names.json`:
 ```
 models/
 ├── best_model_fold1.pth
@@ -21,4 +21,4 @@ models/
 
 ## Note
 
-These files are **not** included in version control due to their size. You must download them manually to use the Pokemon detector.
+The weights are **not** included in version control due to their size. You must download them manually to use the Pokemon detector.
