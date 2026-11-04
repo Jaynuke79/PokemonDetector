@@ -609,7 +609,7 @@ class MainWindow(QMainWindow):
         """Open at the scaled default size, or smaller to fit, centred on screen."""
         size = theme.UNSCALED_SIZE * self.ui_scale
         room = available.size() - theme.FRAME_ALLOWANCE
-        size = size.boundedTo(room).expandedTo(theme.UNSCALED_MINIMUM)
+        size = size.boundedTo(room).expandedTo(theme.UNSCALED_MINIMUM * self.ui_scale)
         self.resize(size)
         self.move(available.center() - self.rect().center())
 

@@ -12,7 +12,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6.QtWidgets", reason="needs the desktop extra")
 
-from PySide6.QtCore import QAbstractAnimation, QMimeData, QPoint, Qt, QUrl
+from PySide6.QtCore import QAbstractAnimation, QMimeData, QPoint, QRect, Qt, QUrl
 from PySide6.QtGui import QDropEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
@@ -366,7 +366,15 @@ def test_large_screens_get_the_preferred_scale():
 
 @pytest.mark.parametrize(
     ("width", "height"),
-    [(1920, 1040), (1366, 728), (1280, 680), (1024, 728), (911, 472), (683, 485)],
+    [
+        (1920, 1040),
+        (1366, 728),
+        (1280, 680),
+        (1024, 728),
+        (911, 480),
+        (911, 472),
+        (683, 485),
+    ],
 )
 def test_the_scaled_minimum_fits_the_screen(width, height):
     scale = theme.ui_scale_for(width, height)
@@ -394,6 +402,26 @@ def test_window_opens_inside_the_available_screen(make_window):
     assert available.contains(window.geometry())
     expected = theme.ui_scale_for(available.width(), available.height())
     assert window.ui_scale == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(("width", "height"), [(911, 480), (683, 465), (1366, 728)])
+def test_window_leaves_room_for_its_frame_on_short_screens(make_window, width, height):
+    window = make_window(ui_scale=theme.ui_scale_for(width, height))
+    window.results.show_predictions(
+        [(rank, "Kangaskhan", 0.2) for rank in range(desktop_window.TOP_K)],
+        {"Kangaskhan": ["Normal"]},
+    )
+    available = QRect(0, 0, width, height)
+
+    window._fit_to_screen(available)
+
+    frame = window.geometry().adjusted(0, -theme.FRAME_ALLOWANCE.height() // 2, 0, 0)
+    room = available.size() - theme.FRAME_ALLOWANCE
+    assert window.width() <= room.width()
+    assert window.height() <= room.height()
+    assert available.contains(frame)
+    assert window.minimumSizeHint().width() <= room.width()
+    assert window.minimumSizeHint().height() <= room.height()
 
 
 def test_scaled_window_grows_its_parts(make_window):
