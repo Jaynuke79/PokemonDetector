@@ -138,7 +138,7 @@ and the CLI and adds Qt.
 
 In CI the window ran on the default `windows` Qt platform, not `offscreen`. The
 runner's screen is too small for the full 1.5 UI scale, so the window picked a
-smaller one to fit: the screenshots are 1008x700 pixels at 100% and 1001x705
+smaller one to fit: the screenshots are 1008x667 pixels at 100% and 1001x656
 at 150%, and the layout still shows every result without clipping.
 
 The spec keeps only the `qwindows` and `qoffscreen` platform plugins and the
