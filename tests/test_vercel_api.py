@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import runpy
 from pathlib import Path
 
 import pytest
@@ -91,7 +92,20 @@ def test_numeric_string_confidence_is_coerced(predict_with_reply):
     ]
 
 
-@pytest.mark.parametrize("confidence", ["high", None, "nan", "inf", [0.9]])
+@pytest.mark.parametrize(
+    "confidence",
+    [
+        "high",
+        None,
+        "nan",
+        "inf",
+        [0.9],
+        pytest.param(10**400, id="huge-int"),
+        1.5,
+        95,
+        -0.1,
+    ],
+)
 def test_unusable_confidence_becomes_zero(predict_with_reply, confidence):
     response = predict_with_reply(
         {"predictions": [{"pokemon": "Pikachu", "confidence": confidence}]}
@@ -109,6 +123,17 @@ def test_missing_confidence_becomes_zero(predict_with_reply):
     assert response.status_code == 200
     assert response.get_json()["predictions"] == [
         {"class_name": "Pikachu", "confidence": "0.0000", "percentage": "0.00%"}
+    ]
+
+
+def test_null_pokemon_is_shown_as_unknown(predict_with_reply):
+    response = predict_with_reply(
+        {"predictions": [{"pokemon": None, "confidence": 0.5}]}
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["predictions"] == [
+        {"class_name": "Unknown", "confidence": "0.5000", "percentage": "50.00%"}
     ]
 
 
@@ -139,6 +164,7 @@ def test_non_dict_entries_are_skipped(predict_with_reply):
         {"pokemon": "Pikachu"},
         [{"pokemon": "Pikachu", "confidence": 0.9}],
         "not json at all",
+        '{"predictions": [{"pokemon": "Pikachu", "confidence": 1' + "0" * 5000 + "}]}",
     ],
 )
 def test_bad_shape_returns_parse_error_fallback(predict_with_reply, model_reply):
@@ -368,23 +394,35 @@ def test_upstream_failure_detail_is_logged_not_returned(
 
 
 @pytest.mark.parametrize(
-    ("envelope", "exception_text"),
+    "envelope",
     [
-        ({"choices": [{}]}, "message"),
-        ({"choices": None}, "NoneType"),
+        {"choices": [{}]},
+        {"choices": None},
+        {"choices": []},
+        {"choices": [None]},
+        {"choices": [{"message": None}]},
+        {"choices": "x"},
+        ["choices"],
     ],
-    ids=["choice-without-message", "null-choices"],
+    ids=[
+        "choice-without-message",
+        "null-choices",
+        "empty-choices",
+        "null-choice",
+        "null-message",
+        "choices-not-list",
+        "envelope-not-object",
+    ],
 )
-def test_malformed_envelope_returns_generic_error(
-    vercel_api, monkeypatch, envelope, exception_text
+def test_malformed_envelope_returns_parse_error_fallback(
+    vercel_api, monkeypatch, envelope
 ):
     monkeypatch.setattr(vercel_api.requests, "post", reply_with_envelope(envelope))
 
     response = vercel_api.app.test_client().post("/api/predict", json=IMAGE_PAYLOAD)
 
-    assert response.status_code == 500
-    assert response.get_json() == {"error": "Prediction failed"}
-    assert exception_text not in response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert response.get_json()["predictions"] == PARSE_ERROR
 
 
 @pytest.mark.parametrize(
@@ -415,6 +453,69 @@ def test_rejected_request_keeps_its_status_with_a_fixed_message(
 
     assert response.status_code == status
     assert response.get_json() == {"error": error}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [5, "image", "my image", ["image"]],
+    ids=["number", "string", "string-containing-image", "list"],
+)
+def test_body_that_is_not_an_object_is_rejected(vercel_api, monkeypatch, body):
+    upstream_calls = []
+    monkeypatch.setattr(
+        vercel_api.requests, "post", lambda *_args, **_kwargs: upstream_calls.append(1)
+    )
+
+    response = vercel_api.app.test_client().post("/api/predict", json=body)
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "No image data provided"}
+    assert upstream_calls == []
+
+
+@pytest.mark.parametrize("image", [123, None, ["AAAA"], {}, True])
+def test_image_that_is_not_a_string_is_rejected(post_image, image):
+    response, forwarded_image_urls = post_image(image)
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Image data must be a base64 string"}
+    assert forwarded_image_urls == []
+
+
+def test_health_does_not_reveal_the_model(vercel_api):
+    response = vercel_api.app.test_client().get("/api/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "healthy", "api_configured": True}
+    assert vercel_api.OPENROUTER_MODEL not in response.get_data(as_text=True)
+
+
+def test_running_directly_serves_on_loopback_without_debugger(monkeypatch):
+    run_calls = []
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("FLASK_DEBUG", raising=False)
+    monkeypatch.setattr(
+        "flask.Flask.run", lambda app, **kwargs: run_calls.append((app, kwargs))
+    )
+
+    runpy.run_path(str(API_PATH), run_name="__main__")
+
+    [(app, kwargs)] = run_calls
+    assert kwargs["host"] == "127.0.0.1"
+    assert not kwargs.get("debug")
+    assert not app.debug
+
+
+def test_default_model_matches_docs(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    spec = importlib.util.spec_from_file_location("vercel_api", API_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    readme = (DEMO_DIR / "README.md").read_text()
+
+    assert f"| `OPENROUTER_MODEL` | ❌ No | `{module.OPENROUTER_MODEL}` |" in readme
 
 
 def test_missing_api_key_message_stays_helpful(vercel_api, monkeypatch):

@@ -134,7 +134,7 @@ Edit `vercel.json` or environment variable:
 ```json
 {
   "env": {
-    "OPENROUTER_MODEL": "anthropic/claude-3-haiku"
+    "OPENROUTER_MODEL": "anthropic/claude-haiku-5.5"
   }
 }
 ```
@@ -270,7 +270,7 @@ logging.basicConfig(level=logging.DEBUG)
 curl https://your-app.vercel.app/api/health
 
 # Expected response:
-# {"status":"healthy","api_configured":true,"model":"..."}
+# {"status":"healthy","api_configured":true}
 ```
 
 ### 6. Test Prediction

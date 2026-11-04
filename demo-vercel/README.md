@@ -12,7 +12,7 @@ Once deployed, you'll get a URL like: `https://pokemon-detector-demo.vercel.app`
 - **Free hosting** - Vercel's free tier
 - **Serverless** - Auto-scales, pay only for usage
 - **Public URL** - Share with anyone
-- **No model files** - Uses OpenRouter API (Claude 3.5 Sonnet)
+- **No model files** - Uses OpenRouter API (Claude Sonnet 5.5 by default)
 
 ## 📋 Prerequisites
 
@@ -109,7 +109,7 @@ Set in Vercel Dashboard or via CLI:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `OPENROUTER_API_KEY` | ✅ Yes | - | Your OpenRouter API key |
-| `OPENROUTER_MODEL` | ❌ No | `anthropic/claude-3.5-sonnet` | AI model to use |
+| `OPENROUTER_MODEL` | ❌ No | `anthropic/claude-sonnet-5.5` | AI model to use |
 
 ### Changing the Model
 
@@ -118,16 +118,16 @@ Edit `vercel.json` or set environment variable:
 ```json
 {
   "env": {
-    "OPENROUTER_MODEL": "openai/gpt-4-vision-preview"
+    "OPENROUTER_MODEL": "anthropic/claude-haiku-5.5"
   }
 }
 ```
 
-**Available Models:**
-- `anthropic/claude-3.5-sonnet` (recommended) - Best accuracy, ~$0.003/image
-- `openai/gpt-4-vision-preview` - Good accuracy, ~$0.01/image
-- `anthropic/claude-3-haiku` - Fastest, cheapest, ~$0.0003/image
-- `google/gemini-pro-vision` - Good balance, ~$0.001/image
+**Example vision models** (see [OpenRouter's model list](https://openrouter.ai/models) for current ids and prices):
+- `anthropic/claude-sonnet-5.5` - Default
+- `anthropic/claude-haiku-5.5` - Faster and cheaper
+- `openai/gpt-4o` - Alternative provider
+- `google/gemini-2.5-flash` - Fast, low cost
 
 ## 📁 Project Structure
 
@@ -180,7 +180,7 @@ python index.py
 - **Cost:** $0
 
 ### OpenRouter API
-Assuming Claude 3.5 Sonnet (~$0.003 per image):
+Assuming ~$0.003 per image (actual cost depends on the model and image size):
 
 | Usage | Images/Month | Cost |
 |-------|--------------|------|
@@ -239,7 +239,7 @@ vercel env add OPENROUTER_API_KEY
 **Cause:** OpenRouter API can take 2-5 seconds
 
 **Solutions:**
-- Switch to faster model (`claude-3-haiku`)
+- Switch to faster model (`anthropic/claude-haiku-5.5`)
 - Add loading indicators (already included)
 - Consider caching common predictions
 
@@ -278,7 +278,7 @@ Files in `public/` are served from the site root without a route.
 1. **Use CDN** - Vercel automatically uses Edge Network
 2. **Optimize images** - Compress before upload
 3. **Cache responses** - Add caching for repeated images (future)
-4. **Choose faster model** - `claude-3-haiku` for speed
+4. **Choose faster model** - `anthropic/claude-haiku-5.5` for speed
 
 ## 📊 Comparison to Other Deployments
 

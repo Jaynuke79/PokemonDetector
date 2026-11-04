@@ -6,7 +6,6 @@ This is the backend API that handles image uploads and predictions.
 
 import base64
 import json
-import math
 import os
 import time
 
@@ -19,7 +18,7 @@ app.config["MAX_CONTENT_LENGTH"] = 4.5 * 1024 * 1024  # 4.5MB max (Vercel limit)
 
 # OpenRouter configuration
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-sonnet-5.5")
 
 ALLOWED_IMAGE_MIME_TYPES = frozenset(
     {"image/png", "image/jpeg", "image/gif", "image/webp"}
@@ -87,9 +86,9 @@ def is_valid_base64(value):
 def coerce_confidence(value):
     try:
         confidence = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0.0
-    return confidence if math.isfinite(confidence) else 0.0
+    return confidence if 0.0 <= confidence <= 1.0 else 0.0
 
 
 def format_predictions(data, topk):
@@ -108,14 +107,23 @@ def format_predictions(data, topk):
     formatted_predictions = []
     for pred in [p for p in predictions if isinstance(p, dict)][:topk]:
         confidence = coerce_confidence(pred.get("confidence", 0.0))
+        pokemon = pred.get("pokemon")
         formatted_predictions.append(
             {
-                "class_name": str(pred.get("pokemon", "Unknown")),
+                "class_name": "Unknown" if pokemon is None else str(pokemon),
                 "confidence": f"{confidence:.4f}",
                 "percentage": f"{confidence * 100:.2f}%",
             }
         )
     return formatted_predictions
+
+
+def first_message_content(choices):
+    if not isinstance(choices, list) or not choices:
+        return None
+    choice = choices[0]
+    message = choice.get("message") if isinstance(choice, dict) else None
+    return message.get("content") if isinstance(message, dict) else None
 
 
 def predict_with_openrouter(image_data_base64, mime_type="image/jpeg", topk=5):
@@ -193,16 +201,19 @@ Important:
             response.raise_for_status()
             result = response.json()
 
-            # Extract the response text
-            if "choices" not in result or len(result["choices"]) == 0:
+            if not isinstance(result, dict):
+                print(f"OpenRouter returned a non-object reply: {result!r}")
+                return parse_error_fallback()
+
+            if "choices" not in result:
                 openrouter_error = result.get("error", result)
                 raise ValueError(
                     f"No choices in OpenRouter response: {openrouter_error}"
                 )
 
-            response_text = result["choices"][0]["message"]["content"]
+            response_text = first_message_content(result["choices"])
             if not isinstance(response_text, str):
-                print(f"OpenRouter returned non-text content: {response_text!r}")
+                print(f"OpenRouter returned no text content: {result['choices']!r}")
                 return parse_error_fallback()
 
             # Parse the JSON response
@@ -218,7 +229,7 @@ Important:
                     response_text = response_text[json_start:json_end].strip()
 
                 data = json.loads(response_text)
-            except json.JSONDecodeError as e:
+            except ValueError as e:
                 print(f"Failed to parse OpenRouter response: {e}")
                 print(f"Raw response: {response_text}")
                 return parse_error_fallback()
@@ -241,7 +252,7 @@ Important:
                     f"OpenRouter API timed out after {OPENROUTER_MAX_ATTEMPTS} attempts. "
                     f"The model '{OPENROUTER_MODEL}' did not respond within "
                     f"{OPENROUTER_READ_TIMEOUT_SECONDS}s per attempt. "
-                    "Try a faster model like 'anthropic/claude-3-haiku' "
+                    "Try a faster model like 'anthropic/claude-haiku-5.5' "
                     "or a smaller image."
                 )
 
@@ -271,9 +282,7 @@ def root():
 def health():
     """Health check endpoint."""
     api_key_set = OPENROUTER_API_KEY is not None and OPENROUTER_API_KEY != ""
-    return jsonify(
-        {"status": "healthy", "api_configured": api_key_set, "model": OPENROUTER_MODEL}
-    )
+    return jsonify({"status": "healthy", "api_configured": api_key_set})
 
 
 @app.route("/api/predict", methods=["POST"])
@@ -291,8 +300,11 @@ def predict():
         # Get JSON data
         data = request.get_json()
 
-        if not data or "image" not in data:
+        if not isinstance(data, dict) or "image" not in data:
             return jsonify({"error": "No image data provided"}), 400
+
+        if not isinstance(data["image"], str):
+            return jsonify({"error": "Image data must be a base64 string"}), 400
 
         # Extract base64 image data
         image_data = data["image"].strip()
@@ -342,4 +354,4 @@ def predict():
 
 # For local testing
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000)
