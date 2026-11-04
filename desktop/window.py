@@ -138,7 +138,7 @@ class DropArea(QLabel):
         return self._scanning
 
     def start_scan(self):
-        self.error_title = ""
+        self.clear_error()
         self._scanning = True
         if not self.reduced_motion:
             self.scan_animation.start()
@@ -152,6 +152,9 @@ class DropArea(QLabel):
     def show_error(self, title):
         self.error_title = title
         self.update()
+
+    def clear_error(self):
+        self.show_error("")
 
     def _set_scan_phase(self, phase):
         self._scan_phase = phase
@@ -519,7 +522,6 @@ class MainWindow(QMainWindow):
         header_row.setContentsMargins(4, 0, 4, 0)
         header_row.setSpacing(14)
         header_row.addWidget(self.visor)
-        header_row.addWidget(self.leds)
         header_row.addStretch(1)
         wordmark = QVBoxLayout()
         wordmark.setSpacing(0)
@@ -550,6 +552,7 @@ class MainWindow(QMainWindow):
         status_row.setSpacing(12)
         status_row.addWidget(self.status_label, 1)
         status_row.addWidget(self.busy_bar)
+        status_row.addWidget(self.leds)
 
         layout = QVBoxLayout(body)
         layout.setContentsMargins(26, 20, 26, 22)
@@ -677,6 +680,8 @@ class MainWindow(QMainWindow):
 
     @Slot(str, QImage, list)
     def _on_classified(self, path, preview, predictions):
+        self._failed = False
+        self.drop_area.clear_error()
         self._end_classification()
         name = Path(path).name
         self.drop_area.show_preview(preview, name)

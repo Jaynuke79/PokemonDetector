@@ -252,6 +252,7 @@ def test_type_badge_text_has_readable_contrast(kind):
 @pytest.mark.parametrize(
     ("text", "background"),
     [
+        (theme.WHITE, theme.BODY_RED_LIGHT),
         (theme.WHITE, theme.BODY_RED),
         (theme.WHITE, theme.BODY_RED_DARK),
         (theme.WHITE, theme.DESK),
@@ -314,6 +315,19 @@ def test_scan_stops_when_the_model_cannot_load(
     wait_until(lambda: len(errors) == 2)
 
     assert not window.drop_area.is_scanning()
+
+
+def test_a_result_clears_an_error_reported_while_scanning(loaded_window, image_path):
+    shown = []
+    loaded_window.results_shown.connect(lambda: shown.append(True))
+    loaded_window.open_image(str(image_path))
+    loaded_window.open_image("image.webp")
+    assert loaded_window.drop_area.error_title == "Unsupported file"
+
+    wait_until(lambda: shown)
+
+    assert loaded_window.drop_area.error_title == ""
+    assert loaded_window.leds.state == "ready"
 
 
 def test_unsupported_file_does_not_start_a_scan(make_window):
