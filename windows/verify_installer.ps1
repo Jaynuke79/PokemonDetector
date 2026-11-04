@@ -289,6 +289,13 @@ Write-Host ("Installed size: {0:N0} bytes in {1} files" -f $bundleBytes, $bundle
 $strayFiles = @($bundleFiles | Where-Object { $_.Name -like '*Zone.Identifier*' })
 Assert-True ($strayFiles.Count -eq 0) 'no Zone.Identifier files were bundled'
 
+foreach ($name in 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md') {
+    $installed = Join-Path $InstallDir $name
+    Assert-True (Test-Path -LiteralPath $installed -PathType Leaf) "setup installed $name"
+    $source = Join-Path $PSScriptRoot "..\$name"
+    Assert-True ((Get-FileHash -LiteralPath $installed).Hash -eq (Get-FileHash -LiteralPath $source).Hash) "the installed $name matches the repository copy"
+}
+
 Write-Host '=== 2. CLI through the PATH, from another directory'
 $result = Invoke-FreshPoke @($SampleImage, '--verbose')
 Write-Host $result.Output

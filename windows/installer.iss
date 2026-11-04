@@ -24,6 +24,7 @@ DisableWelcomePage=no
 DisableDirPage=auto
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
+LicenseFile=..\LICENSE
 OutputDir=installer_output
 OutputBaseFilename=PokemonDetectorSetup-{#AppVersion}
 Compression=lzma2
@@ -40,6 +41,9 @@ Type: filesandordirs; Name: "{app}\_internal"; Check: IsExistingInstall
 
 [Files]
 Source: "dist\PokemonDetector\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Pokemon Detector"; Filename: "{app}\PokemonDetector.exe"; WorkingDir: "{app}"

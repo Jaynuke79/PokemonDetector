@@ -21,4 +21,4 @@ The workflow builds with `windows\build_windows.bat`, and you can run the same s
 
 - The installer is not code signed, so Windows SmartScreen warns users, who have to choose "More info" and then "Run anyway". Antivirus tools can also flag PyInstaller executables.
 - Publish the SHA-256 alongside the installer so users can check their download: `certutil -hashfile PokemonDetectorSetup-<version>.exe SHA256`.
-- The repository has no license file, so the installer shows no license page.
+- The installer shows `LICENSE` (GNU AGPL v3) on a page the user must accept, and installs it with `NOTICE` and `THIRD_PARTY_NOTICES.md`. Update `THIRD_PARTY_NOTICES.md` when the bundled dependencies change.
