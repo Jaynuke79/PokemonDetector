@@ -360,6 +360,51 @@ def test_reduced_motion_can_be_asked_for(monkeypatch):
     assert not theme.prefers_reduced_motion()
 
 
+def test_large_screens_get_the_preferred_scale():
+    assert theme.ui_scale_for(1920, 1040) == theme.PREFERRED_UI_SCALE
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
+    [(1920, 1040), (1366, 728), (1280, 680), (1024, 728), (911, 472), (683, 485)],
+)
+def test_the_scaled_minimum_fits_the_screen(width, height):
+    scale = theme.ui_scale_for(width, height)
+
+    minimum = theme.UNSCALED_MINIMUM * scale + theme.FRAME_ALLOWANCE
+    assert minimum.width() <= width
+    assert minimum.height() <= height
+    assert theme.SMALLEST_UI_SCALE <= scale <= theme.PREFERRED_UI_SCALE
+
+
+def test_tiny_screens_get_the_smallest_scale():
+    assert theme.ui_scale_for(400, 300) == theme.SMALLEST_UI_SCALE
+
+
+def test_stylesheet_lengths_and_fonts_follow_the_scale():
+    assert "font-size: 25.5pt" in theme.stylesheet(1.5)
+    assert "font-size: 17.0pt" in theme.stylesheet(1.0)
+    assert "border-radius: 27px" in theme.stylesheet(1.5)
+
+
+def test_window_opens_inside_the_available_screen(make_window):
+    window = make_window()
+    available = window.screen().availableGeometry()
+
+    assert available.contains(window.geometry())
+    expected = theme.ui_scale_for(available.width(), available.height())
+    assert window.ui_scale == pytest.approx(expected)
+
+
+def test_scaled_window_grows_its_parts(make_window):
+    small = make_window(ui_scale=1.0)
+    large = make_window(ui_scale=1.5)
+
+    assert large.drop_area.minimumWidth() == round(small.drop_area.minimumWidth() * 1.5)
+    assert large.visor.width() == round(small.visor.width() * 1.5)
+    assert large.leds.height() == round(small.leds.height() * 1.5)
+
+
 def test_splash_paints_without_the_window(qapp):
     splash = desktop_main.show_splash(qapp)
 

@@ -66,7 +66,10 @@ the top prediction, its confidence and its elemental types, the other top 5
 predictions as text with confidence bars, and a status line. A scan line sweeps
 the screen while an image is classified; it stays still when Windows
 animations are off or `POKE_REDUCED_MOTION=1` is set. Everything is drawn with
-Qt stylesheets and QPainter, with no image files. The types come from
+Qt stylesheets and QPainter, with no image files. Fonts, sizes and painting
+are drawn at 1.5 times their base size, on top of any OS display scaling, or
+smaller if the window would not fit the screen (`theme.ui_scale_for()`); the
+window opens centred and no larger than the available screen. The types come from
 `desktop/elemental_types.json`, which the spec bundles into
 `_internal\desktop`. The model loads and images are classified on a worker
 thread through `lib.detector_core`; missing model files and unreadable images

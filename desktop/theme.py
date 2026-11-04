@@ -11,7 +11,15 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QSize
+
 ELEMENTAL_TYPES_PATH = Path(__file__).with_name("elemental_types.json")
+PREFERRED_UI_SCALE = 1.5
+SMALLEST_UI_SCALE = 0.8
+UNSCALED_SIZE = QSize(860, 620)
+UNSCALED_MINIMUM = QSize(640, 470)
+FRAME_ALLOWANCE = QSize(16, 64)
+FALLBACK_POINT_SIZE = 9.0
 REDUCED_MOTION_ENV = "POKE_REDUCED_MOTION"
 SPI_GETCLIENTAREAANIMATION = 0x1042
 
@@ -100,6 +108,19 @@ def load_elemental_types(path=ELEMENTAL_TYPES_PATH):
     }
 
 
+def ui_scale_for(available_width, available_height):
+    """The largest scale, up to PREFERRED_UI_SCALE, at which the window still fits.
+
+    The sizes are logical pixels, so a display already scaled by the OS gets a
+    smaller UI scale on top of it rather than a window larger than the screen.
+    """
+    fit = min(
+        (available_width - FRAME_ALLOWANCE.width()) / UNSCALED_MINIMUM.width(),
+        (available_height - FRAME_ALLOWANCE.height()) / UNSCALED_MINIMUM.height(),
+    )
+    return max(SMALLEST_UI_SCALE, min(PREFERRED_UI_SCALE, fit))
+
+
 def prefers_reduced_motion():
     """True if POKE_REDUCED_MOTION is set, or Windows has animations turned off."""
     if os.environ.get(REDUCED_MOTION_ENV, "") not in ("", "0"):
@@ -113,156 +134,171 @@ def prefers_reduced_motion():
     return bool(ok) and not enabled.value
 
 
-STYLESHEET = f"""
-QMainWindow, QMenuBar {{
-    background: {DESK};
-    color: {WHITE};
-}}
-QMenuBar::item {{
-    background: transparent;
-    padding: 4px 10px;
-    border: 2px solid transparent;
-    border-radius: 4px;
-}}
-QMenuBar::item:selected, QMenuBar::item:pressed {{
-    background: {BODY_RED_DARK};
-    border-color: {FOCUS_ON_DARK};
-}}
-QMenu {{
-    background: {SHELL};
-    color: {INK};
-    border: 1px solid {SHELL_EDGE};
-}}
-QMenu::item {{
-    padding: 5px 18px;
-}}
-QMenu::item:selected {{
-    background: {FOCUS_ON_LIGHT};
-    color: {WHITE};
-}}
-QWidget#body QLabel#wordmark {{
-    color: {WHITE};
-    font-size: 17pt;
-    font-weight: 800;
-    letter-spacing: 2px;
-}}
-QWidget#body QLabel#tagline {{
-    color: {WHITE};
-    font-size: 9pt;
-    font-weight: 600;
-    letter-spacing: 1px;
-}}
-QWidget#body QFrame#bezel, QWidget#body QFrame#resultCard {{
-    background: {SHELL};
-    border: 1px solid {SHELL_EDGE};
-    border-radius: 18px;
-}}
-QWidget#body QLabel {{
-    background: transparent;
-    color: {INK};
-}}
-QWidget#body QLabel#screen {{
-    background: {SCREEN};
-    color: {SCREEN_TEXT};
-    border: 3px solid {SCREEN_EDGE};
-    border-radius: 12px;
-    padding: 14px;
-    font-size: 11pt;
-}}
-QWidget#body QLabel[readable="true"] {{
-    border: 2px solid transparent;
-    border-radius: 5px;
-    padding: 1px 6px 1px 3px;
-}}
-QWidget#body QLabel[readable="true"]:focus {{
-    border-color: {FOCUS_ON_LIGHT};
-}}
-QWidget#body QLabel#cardCaption, QWidget#body QLabel#othersCaption {{
-    color: {INK_MUTED};
-    font-size: 8pt;
-    font-weight: 700;
-    letter-spacing: 2px;
-    padding-left: 5px;
-}}
-QWidget#body QLabel#topName {{
-    color: {INK};
-    font-size: 21pt;
-    font-weight: 800;
-}}
-QWidget#body QLabel#topConfidence {{
-    color: {INK};
-    font-size: 15pt;
-    font-weight: 700;
-}}
-QWidget#body QLabel#cardPlaceholder {{
-    color: {INK_MUTED};
-    font-size: 10pt;
-    padding-left: 5px;
-}}
-QWidget#body QLabel#typeBadge {{
-    font-size: 8pt;
-    font-weight: 800;
-    letter-spacing: 1px;
-}}
-QWidget#body QLabel#statusLabel {{
-    background: {LCD};
-    color: {LCD_TEXT};
-    border: 2px solid {LCD};
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-family: "Consolas", "DejaVu Sans Mono", monospace;
-    font-size: 9pt;
-}}
-QWidget#body QLabel#statusLabel:focus {{
-    border-color: {FOCUS_ON_DARK};
-}}
-QWidget#body QPushButton#openButton {{
-    background: {INK};
-    color: {WHITE};
-    border: 3px solid {INK};
-    border-radius: 16px;
-    padding: 6px 18px;
-    font-weight: 700;
-}}
-QWidget#body QPushButton#openButton:hover {{
-    background: #34343f;
-    border-color: #34343f;
-}}
-QWidget#body QPushButton#openButton:pressed {{
-    background: #000000;
-}}
-QWidget#body QPushButton#openButton:focus {{
-    border-color: {FOCUS_ON_LIGHT};
-}}
-QWidget#body QProgressBar {{
-    background: {BAR_GROOVE};
-    border: none;
-    border-radius: 4px;
-    max-height: 8px;
-    min-height: 8px;
-}}
-QWidget#body QProgressBar::chunk {{
-    background: {BAR_FILL};
-    border-radius: 4px;
-}}
-QWidget#body QProgressBar#topBar {{
-    border-radius: 7px;
-    max-height: 14px;
-    min-height: 14px;
-}}
-QWidget#body QProgressBar#topBar::chunk {{
-    border-radius: 7px;
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 {BAR_FILL}, stop:1 {SCAN_GLOW});
-}}
-QWidget#body QProgressBar#busyBar {{
-    background: {LCD};
-    border-radius: 3px;
-    max-height: 6px;
-    min-height: 6px;
-}}
-QWidget#body QProgressBar#busyBar::chunk {{
-    background: {LCD_TEXT};
-    border-radius: 3px;
-}}
+def stylesheet(scale=1.0, base_point_size=FALLBACK_POINT_SIZE):
+    """The window stylesheet with every length and font size multiplied by scale.
+
+    base_point_size is the system font size that unstyled text would use.
+    """
+
+    def px(length):
+        return f"{max(1, round(length * scale))}px"
+
+    def pt(size):
+        return f"{size * scale:.1f}pt"
+
+    return f"""
+    QMenuBar, QMenu, QWidget#body QWidget {{
+        font-size: {pt(base_point_size)};
+    }}
+    QMainWindow, QMenuBar {{
+        background: {DESK};
+        color: {WHITE};
+    }}
+    QMenuBar::item {{
+        background: transparent;
+        padding: {px(4)} {px(10)};
+        border: {px(2)} solid transparent;
+        border-radius: {px(4)};
+    }}
+    QMenuBar::item:selected, QMenuBar::item:pressed {{
+        background: {BODY_RED_DARK};
+        border-color: {FOCUS_ON_DARK};
+    }}
+    QMenu {{
+        background: {SHELL};
+        color: {INK};
+        border: {px(1)} solid {SHELL_EDGE};
+    }}
+    QMenu::item {{
+        padding: {px(5)} {px(18)};
+    }}
+    QMenu::item:selected {{
+        background: {FOCUS_ON_LIGHT};
+        color: {WHITE};
+    }}
+    QWidget#body QLabel#wordmark {{
+        color: {WHITE};
+        font-size: {pt(17)};
+        font-weight: 800;
+        letter-spacing: {px(2)};
+    }}
+    QWidget#body QLabel#tagline {{
+        color: {WHITE};
+        font-size: {pt(9)};
+        font-weight: 600;
+        letter-spacing: {px(1)};
+    }}
+    QWidget#body QFrame#bezel, QWidget#body QFrame#resultCard {{
+        background: {SHELL};
+        border: {px(1)} solid {SHELL_EDGE};
+        border-radius: {px(18)};
+    }}
+    QWidget#body QLabel {{
+        background: transparent;
+        color: {INK};
+    }}
+    QWidget#body QLabel#screen {{
+        background: {SCREEN};
+        color: {SCREEN_TEXT};
+        border: {px(3)} solid {SCREEN_EDGE};
+        border-radius: {px(12)};
+        padding: {px(14)};
+        font-size: {pt(11)};
+    }}
+    QWidget#body QLabel[readable="true"] {{
+        border: {px(2)} solid transparent;
+        border-radius: {px(5)};
+        padding: {px(1)} {px(6)} {px(1)} {px(3)};
+    }}
+    QWidget#body QLabel[readable="true"]:focus {{
+        border-color: {FOCUS_ON_LIGHT};
+    }}
+    QWidget#body QLabel#cardCaption, QWidget#body QLabel#othersCaption {{
+        color: {INK_MUTED};
+        font-size: {pt(8)};
+        font-weight: 700;
+        letter-spacing: {px(2)};
+        padding-left: {px(5)};
+    }}
+    QWidget#body QLabel#topName {{
+        color: {INK};
+        font-size: {pt(21)};
+        font-weight: 800;
+    }}
+    QWidget#body QLabel#topConfidence {{
+        color: {INK};
+        font-size: {pt(15)};
+        font-weight: 700;
+    }}
+    QWidget#body QLabel#cardPlaceholder {{
+        color: {INK_MUTED};
+        font-size: {pt(10)};
+        padding-left: {px(5)};
+    }}
+    QWidget#body QLabel#typeBadge {{
+        font-size: {pt(8)};
+        font-weight: 800;
+        letter-spacing: {px(1)};
+    }}
+    QWidget#body QLabel#statusLabel {{
+        background: {LCD};
+        color: {LCD_TEXT};
+        border: {px(2)} solid {LCD};
+        border-radius: {px(8)};
+        padding: {px(6)} {px(10)};
+        font-family: "Consolas", "DejaVu Sans Mono", monospace;
+        font-size: {pt(9)};
+    }}
+    QWidget#body QLabel#statusLabel:focus {{
+        border-color: {FOCUS_ON_DARK};
+    }}
+    QWidget#body QPushButton#openButton {{
+        background: {INK};
+        color: {WHITE};
+        border: {px(3)} solid {INK};
+        border-radius: {px(14)};
+        padding: {px(6)} {px(18)};
+        font-weight: 700;
+    }}
+    QWidget#body QPushButton#openButton:hover {{
+        background: #34343f;
+        border-color: #34343f;
+    }}
+    QWidget#body QPushButton#openButton:pressed {{
+        background: #000000;
+    }}
+    QWidget#body QPushButton#openButton:focus {{
+        border-color: {FOCUS_ON_LIGHT};
+    }}
+    QWidget#body QProgressBar {{
+        background: {BAR_GROOVE};
+        border: none;
+        border-radius: {px(4)};
+        max-height: {px(8)};
+        min-height: {px(8)};
+    }}
+    QWidget#body QProgressBar::chunk {{
+        background: {BAR_FILL};
+        border-radius: {px(4)};
+    }}
+    QWidget#body QProgressBar#topBar {{
+        border-radius: {px(7)};
+        max-height: {px(14)};
+        min-height: {px(14)};
+    }}
+    QWidget#body QProgressBar#topBar::chunk {{
+        border-radius: {px(7)};
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+            stop:0 {BAR_FILL}, stop:1 {SCAN_GLOW});
+    }}
+    QWidget#body QProgressBar#busyBar {{
+        background: {LCD};
+        border-radius: {px(3)};
+        max-height: {px(6)};
+        min-height: {px(6)};
+    }}
+    QWidget#body QProgressBar#busyBar::chunk {{
+        background: {LCD_TEXT};
+        border-radius: {px(3)};
+    }}
 """

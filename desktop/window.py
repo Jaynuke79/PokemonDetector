@@ -91,6 +91,10 @@ def _caption(text, object_name):
     return label
 
 
+def _px(length, scale):
+    return round(length * scale)
+
+
 def _types_phrase(types):
     return f"{' and '.join(types)} type" if types else ""
 
@@ -103,9 +107,10 @@ class DropArea(QLabel):
     file_dropped = Signal(str)
     activated = Signal()
 
-    def __init__(self, reduced_motion=False):
+    def __init__(self, reduced_motion=False, scale=1.0):
         super().__init__(DROP_PROMPT)
         self.setObjectName("screen")
+        self.scale = scale
         self._preview = None
         self._scanning = False
         self._scan_phase = 0.0
@@ -123,7 +128,7 @@ class DropArea(QLabel):
         self.setWordWrap(True)
         self.setAcceptDrops(True)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setMinimumSize(QSize(220, 200))
+        self.setMinimumSize(QSize(round(220 * scale), round(200 * scale)))
         self.setAccessibleName("Image drop area")
         self.setAccessibleDescription(
             "Drop an image here, or press Enter to choose one. Shows the image preview."
@@ -180,7 +185,9 @@ class DropArea(QLabel):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        inner = QRectF(self.rect()).adjusted(8, 8, -8, -8)
+        painter.scale(self.scale, self.scale)
+        area = QRectF(0, 0, self.width() / self.scale, self.height() / self.scale)
+        inner = area.adjusted(8, 8, -8, -8)
         self._paint_brackets(painter, inner)
         if self._scanning:
             self._paint_scan(painter, inner)
@@ -189,7 +196,14 @@ class DropArea(QLabel):
         if self.hasFocus():
             painter.setPen(QPen(QColor(theme.FOCUS_ON_DARK), 2))
             painter.setBrush(Qt.NoBrush)
-            painter.drawRoundedRect(QRectF(self.rect()).adjusted(4, 4, -4, -4), 9, 9)
+            painter.drawRoundedRect(area.adjusted(4, 4, -4, -4), 9, 9)
+
+    def _painter_font(self):
+        """The label's bold font, sized for a painter already scaled by self.scale."""
+        font = QFont(self.font())
+        font.setBold(True)
+        font.setPointSizeF(font.pointSizeF() / self.scale)
+        return font
 
     def _paint_brackets(self, painter, inner):
         colour = QColor(theme.SCAN_GLOW)
@@ -249,8 +263,7 @@ class DropArea(QLabel):
         self._paint_tag(painter, inner, "SCANNING", theme.SCREEN, theme.SCAN_GLOW)
 
     def _paint_tag(self, painter, inner, text, background, foreground):
-        font = QFont(self.font())
-        font.setBold(True)
+        font = self._painter_font()
         font.setLetterSpacing(QFont.AbsoluteSpacing, 2)
         painter.setFont(font)
         metrics = painter.fontMetrics()
@@ -266,9 +279,7 @@ class DropArea(QLabel):
         painter.drawText(tag, Qt.AlignCenter, text)
 
     def _paint_error(self, painter, inner):
-        font = QFont(self.font())
-        font.setBold(True)
-        painter.setFont(font)
+        painter.setFont(self._painter_font())
         text = f"Error: {self.error_title}"
         width = inner.width() - 20
         flags = Qt.AlignCenter | Qt.TextWordWrap
@@ -319,12 +330,12 @@ class DropArea(QLabel):
 class TypeBadge(QLabel):
     """A pill in the colour of one elemental type."""
 
-    def __init__(self):
+    def __init__(self, scale=1.0):
         super().__init__()
         self.setObjectName("typeBadge")
         self.setFocusPolicy(Qt.NoFocus)
         self.setAlignment(Qt.AlignCenter)
-        self.setContentsMargins(12, 3, 12, 3)
+        self.setContentsMargins(*(_px(length, scale) for length in (12, 3, 12, 3)))
         self.kind = None
 
     def set_kind(self, kind):
@@ -349,7 +360,7 @@ class TypeBadge(QLabel):
 class ResultsPanel(QFrame):
     """A card for the top prediction, with its types, and bars for the rest."""
 
-    def __init__(self):
+    def __init__(self, scale=1.0):
         super().__init__()
         self.setObjectName("resultCard")
         self.setAccessibleName("Top predictions")
@@ -374,36 +385,36 @@ class ResultsPanel(QFrame):
         self.labels[0].setObjectName("topName")
         self.bars[0].setObjectName("topBar")
 
-        self.badges = [TypeBadge() for _ in range(MAX_TYPES)]
+        self.badges = [TypeBadge(scale) for _ in range(MAX_TYPES)]
         badge_row = QHBoxLayout()
-        badge_row.setContentsMargins(5, 0, 0, 0)
-        badge_row.setSpacing(6)
+        badge_row.setContentsMargins(_px(5, scale), 0, 0, 0)
+        badge_row.setSpacing(_px(6, scale))
         for badge in self.badges:
             badge_row.addWidget(badge)
         badge_row.addStretch(1)
 
         confidence_row = QHBoxLayout()
-        confidence_row.setSpacing(12)
+        confidence_row.setSpacing(_px(12, scale))
         confidence_row.addWidget(self.bars[0], 1)
         confidence_row.addWidget(self.top_confidence)
 
         others = QGridLayout()
-        others.setHorizontalSpacing(10)
-        others.setVerticalSpacing(6)
+        others.setHorizontalSpacing(_px(10, scale))
+        others.setVerticalSpacing(_px(6, scale))
         others.setColumnStretch(1, 1)
         for row, (label, bar) in enumerate(zip(self.labels[1:], self.bars[1:])):
             others.addWidget(label, row, 0)
             others.addWidget(bar, row, 1)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 18)
-        layout.setSpacing(8)
+        layout.setContentsMargins(*(_px(length, scale) for length in (18, 16, 18, 18)))
+        layout.setSpacing(_px(8, scale))
         layout.addWidget(_caption("TOP MATCH", "cardCaption"))
         layout.addWidget(self.placeholder)
         layout.addWidget(self.labels[0])
         layout.addLayout(badge_row)
         layout.addLayout(confidence_row)
-        layout.addSpacing(10)
+        layout.addSpacing(_px(10, scale))
         layout.addWidget(self.others_caption)
         layout.addLayout(others)
         layout.addStretch(1)
@@ -469,7 +480,9 @@ class MainWindow(QMainWindow):
     results_shown = Signal()
     error_reported = Signal(str, str)
 
-    def __init__(self, models_dir=None, show_dialogs=True, reduced_motion=None):
+    def __init__(
+        self, models_dir=None, show_dialogs=True, reduced_motion=None, ui_scale=None
+    ):
         super().__init__()
         self._show_dialogs = show_dialogs
         self._pending_requests = 0
@@ -478,16 +491,23 @@ class MainWindow(QMainWindow):
         self.elemental_types = theme.load_elemental_types()
         if reduced_motion is None:
             reduced_motion = theme.prefers_reduced_motion()
+        available = self.screen().availableGeometry()
+        if ui_scale is None:
+            ui_scale = theme.ui_scale_for(available.width(), available.height())
+        self.ui_scale = scale = ui_scale
         self.setWindowTitle(APP_NAME)
-        self.setStyleSheet(theme.STYLESHEET)
-        self.resize(860, 620)
+        base_point_size = self.font().pointSizeF()
+        if base_point_size <= 0:
+            base_point_size = theme.FALLBACK_POINT_SIZE
+        self.setStyleSheet(theme.stylesheet(scale, base_point_size))
+        self._fit_to_screen(available)
 
         self.open_action = QAction("&Open image…", self)
         self.open_action.setShortcut(QKeySequence.Open)
         self.open_action.triggered.connect(self.choose_image)
         self.menuBar().addMenu("&File").addAction(self.open_action)
 
-        self.drop_area = DropArea(reduced_motion)
+        self.drop_area = DropArea(reduced_motion, scale)
         self.drop_area.file_dropped.connect(self.open_image)
         self.drop_area.activated.connect(self.choose_image)
 
@@ -498,14 +518,14 @@ class MainWindow(QMainWindow):
         self.open_button.setToolTip(f"Choose an image ({_open_shortcut_text()})")
         self.open_button.clicked.connect(self.choose_image)
 
-        self.results = ResultsPanel()
+        self.results = ResultsPanel(scale)
 
         self.busy_bar = QProgressBar()
         self.busy_bar.setObjectName("busyBar")
         self.busy_bar.setRange(0, 0)
         self.busy_bar.setTextVisible(False)
         self.busy_bar.setAccessibleName("Working")
-        self.busy_bar.setMaximumWidth(120)
+        self.busy_bar.setMaximumWidth(_px(120, scale))
         self.busy_bar.hide()
         self.status_label = _readable_label()
         self.status_label.setObjectName("statusLabel")
@@ -513,14 +533,14 @@ class MainWindow(QMainWindow):
         self.status_label.setWordWrap(True)
         self.status_label.setAccessibleName("Status")
 
-        self.visor = SensorVisor()
-        self.leds = StatusLeds()
+        self.visor = SensorVisor(scale)
+        self.leds = StatusLeds(scale)
 
-        body = ScannerBody()
+        body = ScannerBody(scale)
         header = QWidget()
         header_row = QHBoxLayout(header)
-        header_row.setContentsMargins(4, 0, 4, 0)
-        header_row.setSpacing(14)
+        header_row.setContentsMargins(_px(4, scale), 0, _px(4, scale), 0)
+        header_row.setSpacing(_px(14, scale))
         header_row.addWidget(self.visor)
         header_row.addStretch(1)
         wordmark = QVBoxLayout()
@@ -533,30 +553,32 @@ class MainWindow(QMainWindow):
         bezel = QFrame()
         bezel.setObjectName("bezel")
         bezel_layout = QVBoxLayout(bezel)
-        bezel_layout.setContentsMargins(16, 16, 16, 12)
-        bezel_layout.setSpacing(10)
+        bezel_layout.setContentsMargins(
+            *(_px(length, scale) for length in (16, 16, 16, 12))
+        )
+        bezel_layout.setSpacing(_px(10, scale))
         bezel_layout.addWidget(self.drop_area, 1)
         button_row = QHBoxLayout()
-        button_row.addWidget(SpeakerGrille())
+        button_row.addWidget(SpeakerGrille(scale))
         button_row.addStretch(1)
         button_row.addWidget(self.open_button)
         bezel_layout.addLayout(button_row)
 
         halves = QHBoxLayout()
-        halves.setSpacing(10)
+        halves.setSpacing(_px(10, scale))
         halves.addWidget(bezel, 5)
-        halves.addWidget(Hinge())
+        halves.addWidget(Hinge(scale))
         halves.addWidget(self.results, 4)
 
         status_row = QHBoxLayout()
-        status_row.setSpacing(12)
+        status_row.setSpacing(_px(12, scale))
         status_row.addWidget(self.status_label, 1)
         status_row.addWidget(self.busy_bar)
         status_row.addWidget(self.leds)
 
         layout = QVBoxLayout(body)
-        layout.setContentsMargins(26, 20, 26, 22)
-        layout.setSpacing(22)
+        layout.setContentsMargins(*(_px(length, scale) for length in (26, 20, 26, 22)))
+        layout.setSpacing(_px(22, scale))
         layout.addWidget(header)
         layout.addLayout(halves, 1)
         layout.addLayout(status_row)
@@ -582,6 +604,14 @@ class MainWindow(QMainWindow):
         self.worker.load_failed.connect(self._on_load_failed)
         self.worker.classified.connect(self._on_classified)
         self.worker.classify_failed.connect(self._on_classify_failed)
+
+    def _fit_to_screen(self, available):
+        """Open at the scaled default size, or smaller to fit, centred on screen."""
+        size = theme.UNSCALED_SIZE * self.ui_scale
+        room = available.size() - theme.FRAME_ALLOWANCE
+        size = size.boundedTo(room).expandedTo(theme.UNSCALED_MINIMUM)
+        self.resize(size)
+        self.move(available.center() - self.rect().center())
 
     def start(self):
         """Start the worker thread and ask it to load the model."""
