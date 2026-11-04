@@ -1,0 +1,15 @@
+Pokemon Detector desktop app: third-party notices
+
+This app uses Qt 6 and Qt for Python (PySide6 and Shiboken6), version 6.12.0,
+by The Qt Company Ltd. and other contributors, under the GNU Lesser General
+Public License version 3 (LGPL-3.0). The license text is in LGPL-3.0.txt, and
+the GNU General Public License version 3 it builds on is in GPL-3.0.txt.
+
+Source code:
+  Qt:         https://download.qt.io/official_releases/qt/
+  PySide6:    https://code.qt.io/cgit/pyside/pyside-setup.git/
+  Wheels:     https://pypi.org/project/PySide6-Essentials/6.12.0/
+
+The Qt and PySide6 libraries are separate files in the app's _internal\PySide6
+folder (for example Qt6Core.dll). You may replace them with compatible versions
+you have modified or built yourself.

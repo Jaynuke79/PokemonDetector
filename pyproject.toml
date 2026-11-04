@@ -28,13 +28,17 @@ test = [
     "pytest>=8",
     "requests>=2.31.0",
 ]
+desktop = [
+    "pyside6-essentials==6.12.0",
+]
 
 
 [project.scripts]
 poke = "cli.main:cli"
+poke-gui = "desktop.main:main"
 
 [tool.setuptools]
-packages = ["cli", "webapp", "lib"]
+packages = ["cli", "webapp", "lib", "desktop"]
 
 [tool.uv]
 package = true

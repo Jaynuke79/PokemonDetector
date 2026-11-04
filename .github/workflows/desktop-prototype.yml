@@ -1,0 +1,227 @@
+name: Desktop app prototype
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "desktop/**"
+      - "lib/**"
+      - "windows/desktop.spec"
+      - "windows/desktop-licenses/**"
+      - "tests/test_desktop.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/desktop-prototype.yml"
+
+permissions:
+  contents: read
+
+env:
+  WEIGHTS_FILE_ID: 1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-
+  WEIGHTS_SHA256: 4f82cd98fd45c6affdb85df18e02f69e83fbf6850cf3876d7244d7d199268045
+  WEIGHTS_BYTES: "351007742"
+  SELF_TEST_TIMEOUT_MS: "900000"
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-and-run:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Restore cached weights
+        id: weights-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/weights
+          key: weights-${{ env.WEIGHTS_SHA256 }}
+
+      - name: Download weights
+        if: steps.weights-cache.outputs.cache-hit != 'true'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # A separate venv keeps gdown's dependencies out of the bundle.
+          python -m venv "$env:RUNNER_TEMP\gdown-venv"
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m pip install --quiet gdown==6.5.1
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\weights" | Out-Null
+          & "$env:RUNNER_TEMP\gdown-venv\Scripts\python.exe" -m gdown $env:WEIGHTS_FILE_ID -O "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+
+      - name: Verify weights and copy them into models/
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $weights = Get-Item -LiteralPath "$env:RUNNER_TEMP\weights\best_model_fold1.pth"
+          $hash = (Get-FileHash -LiteralPath $weights.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Weights: $($weights.Length) bytes, SHA-256 $hash"
+          if ($hash -ne $env:WEIGHTS_SHA256) { throw "Weights SHA-256 is $hash, expected $env:WEIGHTS_SHA256" }
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Weights are $($weights.Length) bytes, expected $env:WEIGHTS_BYTES" }
+          Copy-Item -LiteralPath $weights.FullName -Destination models\best_model_fold1.pth
+
+      - name: Install dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m venv .venv-desktop
+          $python = '.venv-desktop\Scripts\python.exe'
+          & $python -m pip install --quiet --upgrade pip
+          & $python -m pip install --quiet --no-deps --index-url https://download.pytorch.org/whl/cpu torch==2.7.1+cpu torchvision==0.22.1+cpu
+          & $python -m pip install --quiet -r requirements.txt pyside6-essentials==6.12.0 pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.9 pytest==9.2.0
+          & $python -m pip check
+          & $python -c "import torch, PySide6; assert torch.__version__ == '2.7.1+cpu', torch.__version__; print('torch', torch.__version__, 'PySide6', PySide6.__version__)"
+
+      - name: Run the desktop tests on Windows
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & .venv-desktop\Scripts\python.exe -m pytest tests/test_desktop.py -q -p no:cacheprovider
+
+      - name: Build with desktop.spec
+        working-directory: windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & ..\.venv-desktop\Scripts\python.exe -m PyInstaller --noconfirm --clean desktop.spec
+          & ..\.venv-desktop\Scripts\python.exe check_bundled_runtime.py dist\PokemonDetectorDesktop
+
+      - name: Check the bundle and measure it
+        working-directory: windows/dist/PokemonDetectorDesktop
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-Item -LiteralPath PokemonDetectorDesktop.exe
+          if ($exe.Length -eq 0) { throw 'PokemonDetectorDesktop.exe is empty' }
+          $weights = Get-Item -LiteralPath _internal\models\best_model_fold1.pth
+          if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Bundled weights are $($weights.Length) bytes" }
+          foreach ($notice in 'NOTICE.txt', 'LGPL-3.0.txt', 'GPL-3.0.txt') {
+            if ((Get-Item -LiteralPath "_internal\licenses\$notice").Length -eq 0) { throw "$notice is empty" }
+          }
+          Get-Item -LiteralPath _internal\PySide6\Qt6Core.dll, _internal\PySide6\plugins\platforms\qwindows.dll | Out-Null
+          foreach ($unwanted in 'flask', 'werkzeug', 'gunicorn', 'PySide6\plugins\imageformats', 'PySide6\translations', 'PySide6\opengl32sw.dll') {
+            if (Test-Path -LiteralPath "_internal\$unwanted") { throw "$unwanted was bundled" }
+          }
+          Write-Host 'Qt plugins in the bundle:'
+          Get-ChildItem -LiteralPath _internal\PySide6\plugins -Recurse -File | ForEach-Object { Write-Host "  $($_.FullName.Substring($PWD.Path.Length + 1))" }
+          function Get-Size([string[]]$Paths) {
+            [long](Get-ChildItem -LiteralPath $Paths -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          }
+          $sizes = [ordered]@{
+            'Whole bundle' = Get-Size '.'
+            'Qt (PySide6 + shiboken6)' = Get-Size '_internal\PySide6', '_internal\shiboken6'
+            'torch + torchvision' = Get-Size '_internal\torch', '_internal\torchvision'
+            'Model weights' = $weights.Length
+          }
+          $summary = @('### Desktop prototype bundle size', '', '| Part | MB | Bytes |', '| --- | ---: | ---: |')
+          foreach ($part in $sizes.Keys) {
+            $summary += '| {0} | {1:N1} | {2:N0} |' -f $part, ($sizes[$part] / 1MB), $sizes[$part]
+          }
+          $summary | ForEach-Object { Write-Host $_ }
+          $summary | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Remove the repository's weights so only the bundle's copy can be used
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item -LiteralPath models\best_model_fold1.pth
+          if (Test-Path -LiteralPath models\best_model_fold1.pth) { throw 'The weights are still in models/' }
+
+      - name: Run the built app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = (Resolve-Path -LiteralPath windows\dist\PokemonDetectorDesktop\PokemonDetectorDesktop.exe).Path
+          $runDir = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\desktop-run"
+          $outDir = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\desktop-output"
+          Copy-Item -LiteralPath gengar.png -Destination $runDir
+          Set-Location -LiteralPath $runDir
+
+          # The exe is a windowed app, so it only writes to stdout when it is redirected.
+          function Invoke-App([string]$Name, [string[]]$Arguments) {
+            $stdout = Join-Path $outDir "$Name.out.txt"
+            $stderr = Join-Path $outDir "$Name.err.txt"
+            $process = Start-Process -FilePath $app -ArgumentList $Arguments -NoNewWindow -PassThru `
+              -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            $null = $process.Handle
+            if (-not $process.WaitForExit([int]$env:SELF_TEST_TIMEOUT_MS)) {
+              $process.Kill()
+              throw "$Name did not finish within $env:SELF_TEST_TIMEOUT_MS ms"
+            }
+            $output = Get-Content -LiteralPath $stdout -Raw
+            $errors = Get-Content -LiteralPath $stderr -Raw
+            Write-Host "--- $Name stdout`n$output"
+            Write-Host "--- $Name stderr`n$errors"
+            return [pscustomobject]@{ ExitCode = $process.ExitCode; Output = $output }
+          }
+
+          function Assert-Gengar($Run, [string]$Name) {
+            if ($Run.ExitCode -ne 0) { throw "$Name exited $($Run.ExitCode)" }
+            if ($Run.Output -notmatch '(?m)^1\. Gengar: \d+\.\d+%') { throw "$Name did not rank Gengar first" }
+          }
+
+          function Assert-Screenshot([string]$Path) {
+            $shot = Get-Item -LiteralPath $Path
+            if ($shot.Length -eq 0) { throw "$Path is empty" }
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Image]::FromFile($shot.FullName)
+            try { Write-Host "$($shot.Name): $($image.Width)x$($image.Height) pixels, $($shot.Length) bytes" }
+            finally { $image.Dispose() }
+          }
+
+          Assert-Gengar (Invoke-App 'self-test' @('--self-test', 'gengar.png')) 'self-test'
+
+          $shot = Join-Path $outDir 'desktop-window.png'
+          $run = Invoke-App 'screenshot' @('--self-test', 'gengar.png', '--screenshot', $shot)
+          Assert-Gengar $run 'screenshot'
+          Assert-Screenshot $shot
+
+          $env:QT_SCALE_FACTOR = '1.5'
+          $shot150 = Join-Path $outDir 'desktop-window-150-percent.png'
+          Assert-Gengar (Invoke-App 'screenshot-150-percent' @('--self-test', 'gengar.png', '--screenshot', $shot150)) 'screenshot at 150%'
+          Assert-Screenshot $shot150
+
+          "DESKTOP_OUTPUT=$outDir" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Show application crash events
+        if: failure()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $events = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1001, 1026 } -MaxEvents 10 -ErrorAction SilentlyContinue
+          if (-not $events) { Write-Host 'No application crash events'; exit 0 }
+          $events | ForEach-Object { Write-Host "--- $($_.TimeCreated) event $($_.Id)`n$($_.Message)" }
+
+      - name: Zip the prototype
+        working-directory: windows/dist
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          7z a -tzip -mx=5 -bd PokemonDetectorDesktop.zip PokemonDetectorDesktop | Out-Null
+          $zip = Get-Item -LiteralPath PokemonDetectorDesktop.zip
+          if ($zip.Length -eq 0) { throw 'The zip is empty' }
+          $line = 'Zipped prototype: {0:N1} MB ({1:N0} bytes)' -f ($zip.Length / 1MB), $zip.Length
+          Write-Host $line
+          $line | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Upload the prototype
+        uses: actions/upload-artifact@v7
+        with:
+          name: PokemonDetectorDesktop-prototype
+          path: windows/dist/PokemonDetectorDesktop.zip
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload the screenshots and run logs
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-screenshots
+          path: ${{ env.DESKTOP_OUTPUT }}
+          retention-days: 7
+          if-no-files-found: error
