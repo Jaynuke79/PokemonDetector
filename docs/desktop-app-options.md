@@ -137,8 +137,9 @@ installer bundle (818,372,831 bytes), the desktop bundle drops Flask, Werkzeug
 and the CLI and adds Qt.
 
 In CI the window ran on the default `windows` Qt platform, not `offscreen`. The
-150% screenshot is 1028x761 pixels: the window shrank to fit the runner's small
-screen, and the layout still shows every result without clipping.
+runner's screen is too small for the full 1.5 UI scale, so the window picked a
+smaller one to fit: the screenshots are 1008x700 pixels at 100% and 1001x705
+at 150%, and the layout still shows every result without clipping.
 
 The spec keeps only the `qwindows` and `qoffscreen` platform plugins and the
 `styles` plugin, and drops Qt's image format, icon engine, TLS and network
