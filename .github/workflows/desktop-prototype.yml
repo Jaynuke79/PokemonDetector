@@ -103,6 +103,7 @@ jobs:
           if ($exe.Length -eq 0) { throw 'PokemonDetectorDesktop.exe is empty' }
           $weights = Get-Item -LiteralPath _internal\models\best_model_fold1.pth
           if ($weights.Length -ne [long]$env:WEIGHTS_BYTES) { throw "Bundled weights are $($weights.Length) bytes" }
+          if ((Get-Item -LiteralPath _internal\desktop\elemental_types.json).Length -eq 0) { throw 'elemental_types.json is empty' }
           foreach ($notice in 'NOTICE.txt', 'LGPL-3.0.txt', 'GPL-3.0.txt') {
             if ((Get-Item -LiteralPath "_internal\licenses\$notice").Length -eq 0) { throw "$notice is empty" }
           }

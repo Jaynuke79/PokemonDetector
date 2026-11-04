@@ -10,11 +10,11 @@ import argparse
 import faulthandler
 import sys
 
-from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
-from desktop import APP_NAME
+from desktop import APP_NAME, theme
 
 SELF_TEST_TIMEOUT_MS = 10 * 60 * 1000
 SCREENSHOT_SETTLE_MS = 250
@@ -29,17 +29,29 @@ def load_window_class():
     return MainWindow
 
 
+def paint_splash(pixmap):
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    area = QRectF(QPointF(0, 0), SPLASH_SIZE.toSizeF())
+    painter.fillRect(area, QColor(theme.BODY_RED))
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(theme.BODY_RED_DARK))
+    painter.drawRect(QRectF(0, area.height() - 14, area.width(), 14))
+    painter.setBrush(QColor(theme.SCREEN))
+    painter.drawRoundedRect(QRectF(18, 18, 54, 22), 11, 11)
+    painter.setBrush(QColor(theme.SCAN_GLOW))
+    painter.drawRoundedRect(QRectF(22, 22, 46, 14), 7, 7)
+    painter.end()
+
+
 def show_splash(app):
     ratio = app.devicePixelRatio()
     pixmap = QPixmap(SPLASH_SIZE * ratio)
     pixmap.setDevicePixelRatio(ratio)
-    palette = app.palette()
-    pixmap.fill(palette.window().color())
+    paint_splash(pixmap)
     splash = QSplashScreen(pixmap)
     splash.setAccessibleName(f"Starting {APP_NAME}")
-    splash.showMessage(
-        f"Starting {APP_NAME}…", Qt.AlignCenter, palette.windowText().color()
-    )
+    splash.showMessage(f"Starting {APP_NAME}…", Qt.AlignCenter, QColor(theme.WHITE))
     splash.show()
     app.processEvents()
     return splash
