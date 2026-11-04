@@ -65,6 +65,7 @@ DROP_PROMPT = "Drop an image here,\nor press Enter to choose one"
 CARD_PLACEHOLDER = "Scan an image to see what it is."
 CONFIDENCE_STEPS = 10000
 MAX_TYPES = 2
+BAR_MINIMUM_WIDTH = 40
 SCAN_SWEEP_MS = 1600
 SCAN_TRAIL = 70
 BRACKET = 22
@@ -128,7 +129,7 @@ class DropArea(QLabel):
         self.setWordWrap(True)
         self.setAcceptDrops(True)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setMinimumSize(QSize(round(220 * scale), round(200 * scale)))
+        self.setMinimumSize(QSize(round(200 * scale), round(200 * scale)))
         self.setAccessibleName("Image drop area")
         self.setAccessibleDescription(
             "Drop an image here, or press Enter to choose one. Shows the image preview."
@@ -380,6 +381,7 @@ class ResultsPanel(QFrame):
             bar = QProgressBar()
             bar.setRange(0, CONFIDENCE_STEPS)
             bar.setTextVisible(False)
+            bar.setMinimumWidth(_px(BAR_MINIMUM_WIDTH, scale))
             self.labels.append(label)
             self.bars.append(bar)
         self.labels[0].setObjectName("topName")

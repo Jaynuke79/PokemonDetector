@@ -420,7 +420,16 @@ def test_window_leaves_room_for_its_frame_on_short_screens(make_window, width, h
     assert window.width() <= room.width()
     assert window.height() <= room.height()
     assert available.contains(frame)
-    assert window.minimumSizeHint().width() <= room.width()
+    parts = {
+        "header": window.centralWidget().seam_below,
+        "screen": window.drop_area,
+        "button": window.open_button,
+        "card": window.results,
+        "row label": window.results.labels[1],
+        "bar": window.results.bars[1],
+    }
+    widths = {name: part.minimumSizeHint().width() for name, part in parts.items()}
+    assert window.minimumSizeHint().width() <= room.width(), widths
     assert window.minimumSizeHint().height() <= room.height()
 
 
