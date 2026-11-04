@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 import torch
@@ -11,12 +12,13 @@ from PIL import Image
 
 pytest.importorskip("PySide6.QtWidgets", reason="needs the desktop extra")
 
-from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
+from PySide6.QtCore import QAbstractAnimation, QMimeData, QPoint, QRect, Qt, QUrl
 from PySide6.QtGui import QDropEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from desktop import main as desktop_main
+from desktop import theme
 from desktop import window as desktop_window
 from desktop.worker import (
     CLASS_NAMES_FILENAME,
@@ -28,6 +30,7 @@ from lib import detector_core
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 WAIT_SECONDS = 30
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="session")
@@ -76,6 +79,7 @@ def make_window(qapp):
     windows = []
 
     def make(**kwargs):
+        kwargs.setdefault("reduced_motion", False)
         window = desktop_window.MainWindow(**kwargs)
         windows.append(window)
         return window
@@ -173,14 +177,276 @@ def test_results_from_the_worker_thread_reach_the_window(
 def test_results_are_text_for_screen_readers(loaded_window, image_path):
     classify(loaded_window, image_path)
 
-    for label, bar in zip(loaded_window.results.labels, loaded_window.results.bars):
-        if label.isHidden():
-            continue
-        name = label.text().split(". ", 1)[1].split(":")[0]
-        assert label.accessibleName() == label.text()
+    results = loaded_window.results
+    shown = [
+        (label, bar)
+        for label, bar in zip(results.labels, results.bars)
+        if not label.isHidden()
+    ]
+    assert len(shown) == len(results.lines())
+    for line, (label, bar) in zip(results.lines(), shown):
+        name = line.split(". ", 1)[1].split(":")[0]
+        assert label.accessibleName() == line
+        assert name in label.text()
         assert label.focusPolicy() & Qt.TabFocus
         assert bar.accessibleName() == f"{name} confidence"
-        assert bar.text() == label.text().rsplit(": ", 1)[1]
+        assert bar.text() == line.rsplit(": ", 1)[1]
+
+
+def test_top_match_shows_its_elemental_types(loaded_window, image_path, class_names):
+    loaded_window.elemental_types = {
+        name: kinds
+        for name, kinds in zip(class_names, (["Grass", "Poison"], ["Fire"], []))
+    }
+
+    classify(loaded_window, image_path)
+
+    top_name = loaded_window.results.lines()[0].split(". ", 1)[1].split(":")[0]
+    expected = loaded_window.elemental_types[top_name]
+    assert loaded_window.results.top_types() == expected
+    description = loaded_window.results.labels[0].accessibleDescription()
+    assert all(kind in description for kind in expected)
+    for badge in loaded_window.results.badges:
+        assert badge.focusPolicy() == Qt.NoFocus
+
+
+def test_a_name_without_types_shows_no_badges(loaded_window, image_path):
+    loaded_window.elemental_types = {}
+
+    classify(loaded_window, image_path)
+
+    assert loaded_window.results.top_types() == []
+    assert loaded_window.results.labels[0].accessibleDescription() == ""
+
+
+def test_every_class_name_has_elemental_types():
+    class_names = json.loads((REPO_ROOT / "models" / CLASS_NAMES_FILENAME).read_text())
+    raw = json.loads(theme.ELEMENTAL_TYPES_PATH.read_text())
+
+    assert set(raw) == set(class_names)
+    for name in class_names:
+        kinds = raw[name]
+        assert 1 <= len(kinds) <= 2, name
+        assert len(set(kinds)) == len(kinds), name
+        assert set(kinds) <= set(theme.TYPE_COLOURS), name
+    assert theme.load_elemental_types() == raw
+
+
+def test_unusable_type_data_gives_no_types(tmp_path):
+    assert theme.load_elemental_types(tmp_path / "missing.json") == {}
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    assert theme.load_elemental_types(broken) == {}
+    listed = tmp_path / "list.json"
+    listed.write_text('["Fire"]')
+    assert theme.load_elemental_types(listed) == {}
+
+
+@pytest.mark.parametrize("kind", sorted(theme.TYPE_COLOURS))
+def test_type_badge_text_has_readable_contrast(kind):
+    background = theme.TYPE_COLOURS[kind]
+
+    assert theme.contrast_ratio(theme.badge_text_colour(background), background) >= 4.5
+
+
+@pytest.mark.parametrize(
+    ("text", "background"),
+    [
+        (theme.WHITE, theme.BODY_RED_LIGHT),
+        (theme.WHITE, theme.BODY_RED),
+        (theme.WHITE, theme.BODY_RED_DARK),
+        (theme.WHITE, theme.DESK),
+        (theme.INK, theme.SHELL),
+        (theme.INK_MUTED, theme.SHELL),
+        (theme.WHITE, theme.INK),
+        (theme.WHITE, theme.FOCUS_ON_LIGHT),
+        (theme.SCREEN_TEXT, theme.SCREEN),
+        (theme.SCAN_GLOW, theme.SCREEN),
+        (theme.LCD_TEXT, theme.LCD),
+        (theme.ERROR_TEXT, theme.ERROR_BANNER),
+    ],
+)
+def test_text_colours_have_readable_contrast(text, background):
+    assert theme.contrast_ratio(text, background) >= 4.5
+
+
+def test_contrast_ratio_matches_wcag():
+    assert theme.contrast_ratio("#000000", "#ffffff") == pytest.approx(21)
+    assert theme.contrast_ratio("#777777", "#777777") == pytest.approx(1)
+
+
+def test_scan_runs_while_classifying_and_stops_with_the_result(
+    loaded_window, image_path
+):
+    shown = []
+    loaded_window.results_shown.connect(lambda: shown.append(True))
+
+    loaded_window.open_image(str(image_path))
+
+    assert loaded_window.drop_area.is_scanning()
+    assert loaded_window.drop_area.scan_animation.state() == QAbstractAnimation.Running
+    assert "Classifying pikachu.png" in loaded_window.status_label.text()
+    wait_until(lambda: shown)
+    assert not loaded_window.drop_area.is_scanning()
+    assert loaded_window.drop_area.scan_animation.state() == QAbstractAnimation.Stopped
+
+
+def test_scan_stops_and_the_screen_shows_the_error(loaded_window, broken_image_path):
+    loaded_window.open_image(str(broken_image_path))
+
+    wait_for_dialog(loaded_window)
+
+    assert not loaded_window.drop_area.is_scanning()
+    assert loaded_window.drop_area.error_title == "Could not read the image"
+    assert loaded_window.leds.state == "error"
+
+
+def test_scan_stops_when_the_model_cannot_load(
+    make_window, weights_dir, class_names, monkeypatch, image_path
+):
+    (weights_dir / CLASS_NAMES_FILENAME).write_text(json.dumps(class_names))
+    monkeypatch.setenv("POKE_MODELS_DIR", str(weights_dir))
+    window = make_window(show_dialogs=False)
+    errors = []
+    window.error_reported.connect(lambda title, _message: errors.append(title))
+    window.start()
+    window.open_image(str(image_path))
+
+    wait_until(lambda: len(errors) == 2)
+
+    assert not window.drop_area.is_scanning()
+
+
+def test_a_result_clears_an_error_reported_while_scanning(loaded_window, image_path):
+    shown = []
+    loaded_window.results_shown.connect(lambda: shown.append(True))
+    loaded_window.open_image(str(image_path))
+    loaded_window.open_image("image.webp")
+    assert loaded_window.drop_area.error_title == "Unsupported file"
+
+    wait_until(lambda: shown)
+
+    assert loaded_window.drop_area.error_title == ""
+    assert loaded_window.leds.state == "ready"
+
+
+def test_unsupported_file_does_not_start_a_scan(make_window):
+    window = make_window(show_dialogs=False)
+
+    window.open_image("image.webp")
+
+    assert not window.drop_area.is_scanning()
+    assert window.drop_area.error_title == "Unsupported file"
+
+
+def test_reduced_motion_keeps_the_scan_still(
+    make_window, models_dir, model_threads, image_path
+):
+    window = make_window(reduced_motion=True)
+    window.start()
+
+    window.open_image(str(image_path))
+
+    assert window.drop_area.is_scanning()
+    assert window.drop_area.scan_animation.state() == QAbstractAnimation.Stopped
+    assert "Classifying" in window.status_label.text()
+
+
+def test_reduced_motion_can_be_asked_for(monkeypatch):
+    monkeypatch.setenv(theme.REDUCED_MOTION_ENV, "1")
+    assert theme.prefers_reduced_motion()
+    monkeypatch.setenv(theme.REDUCED_MOTION_ENV, "0")
+    monkeypatch.setattr(theme.sys, "platform", "linux")
+    assert not theme.prefers_reduced_motion()
+
+
+def test_large_screens_get_the_preferred_scale():
+    assert theme.ui_scale_for(1920, 1040) == theme.PREFERRED_UI_SCALE
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
+    [
+        (1920, 1040),
+        (1366, 728),
+        (1280, 680),
+        (1024, 728),
+        (911, 480),
+        (911, 472),
+        (683, 485),
+    ],
+)
+def test_the_scaled_minimum_fits_the_screen(width, height):
+    scale = theme.ui_scale_for(width, height)
+
+    minimum = theme.UNSCALED_MINIMUM * scale + theme.FRAME_ALLOWANCE
+    assert minimum.width() <= width
+    assert minimum.height() <= height
+    assert theme.SMALLEST_UI_SCALE <= scale <= theme.PREFERRED_UI_SCALE
+
+
+def test_tiny_screens_get_the_smallest_scale():
+    assert theme.ui_scale_for(400, 300) == theme.SMALLEST_UI_SCALE
+
+
+def test_stylesheet_lengths_and_fonts_follow_the_scale():
+    assert "font-size: 25.5pt" in theme.stylesheet(1.5)
+    assert "font-size: 17.0pt" in theme.stylesheet(1.0)
+    assert "border-radius: 27px" in theme.stylesheet(1.5)
+
+
+def test_window_opens_inside_the_available_screen(make_window):
+    window = make_window()
+    available = window.screen().availableGeometry()
+
+    assert available.contains(window.geometry())
+    expected = theme.ui_scale_for(available.width(), available.height())
+    assert window.ui_scale == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(("width", "height"), [(911, 480), (683, 465), (1366, 728)])
+def test_window_leaves_room_for_its_frame_on_short_screens(make_window, width, height):
+    window = make_window(ui_scale=theme.ui_scale_for(width, height))
+    window.results.show_predictions(
+        [(rank, "Kangaskhan", 0.2) for rank in range(desktop_window.TOP_K)],
+        {"Kangaskhan": ["Normal"]},
+    )
+    available = QRect(0, 0, width, height)
+
+    window._fit_to_screen(available)
+
+    frame = window.geometry().adjusted(0, -theme.FRAME_ALLOWANCE.height() // 2, 0, 0)
+    room = available.size() - theme.FRAME_ALLOWANCE
+    assert window.width() <= room.width()
+    assert window.height() <= room.height()
+    assert available.contains(frame)
+    parts = {
+        "header": window.centralWidget().seam_below,
+        "screen": window.drop_area,
+        "button": window.open_button,
+        "card": window.results,
+        "row label": window.results.labels[1],
+        "bar": window.results.bars[1],
+    }
+    widths = {name: part.minimumSizeHint().width() for name, part in parts.items()}
+    assert window.minimumSizeHint().width() <= room.width(), widths
+    assert window.minimumSizeHint().height() <= room.height()
+
+
+def test_scaled_window_grows_its_parts(make_window):
+    small = make_window(ui_scale=1.0)
+    large = make_window(ui_scale=1.5)
+
+    assert large.drop_area.minimumWidth() == round(small.drop_area.minimumWidth() * 1.5)
+    assert large.visor.width() == round(small.visor.width() * 1.5)
+    assert large.leds.height() == round(small.leds.height() * 1.5)
+
+
+def test_splash_paints_without_the_window(qapp):
+    splash = desktop_main.show_splash(qapp)
+
+    assert not splash.pixmap().isNull()
+    splash.close()
 
 
 def test_window_stays_responsive_while_the_model_loads(

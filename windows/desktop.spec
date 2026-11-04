@@ -22,6 +22,7 @@ if not model_path.exists():
 datas = [
     (str(project_root / 'models' / 'class_names.json'), 'models'),
     (str(model_path), 'models'),
+    (str(project_root / 'desktop' / 'elemental_types.json'), 'desktop'),
     (str(project_root / 'windows' / 'desktop-licenses'), 'licenses'),
 ]
 
