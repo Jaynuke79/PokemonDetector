@@ -23,6 +23,23 @@ def _default_model_file(filename):
     return lambda: str(default_models_dir() / filename)
 
 
+def _read_class_names(path):
+    try:
+        class_names = load_class_names(path)
+    except ValueError as e:
+        raise click.BadParameter(
+            f"{path} is not valid JSON: {e}", param_hint="--class-names-path"
+        ) from e
+    if not isinstance(class_names, list) or not all(
+        isinstance(name, str) for name in class_names
+    ):
+        raise click.BadParameter(
+            f"{path} must contain a JSON list of class names.",
+            param_hint="--class-names-path",
+        )
+    return class_names
+
+
 @click.command()
 @click.argument("img_path", type=EXISTING_FILE)
 @click.option(
@@ -52,7 +69,7 @@ def cli(img_path, topk, model, weights, class_names_path, verbose):
         poke path/to/image.jpg
         poke path/to/image.jpg --topk 3 --verbose
     """
-    class_names = load_class_names(class_names_path)
+    class_names = _read_class_names(class_names_path)
     num_classes = len(class_names)
     if topk > num_classes:
         raise click.BadParameter(
@@ -73,9 +90,12 @@ def cli(img_path, topk, model, weights, class_names_path, verbose):
         raise click.ClickException(f"Could not load model: {e}") from e
 
     transform = get_transform()
-    results = predict_image(
-        img_path, loaded_model, transform, device, class_names, topk=topk
-    )
+    try:
+        results = predict_image(
+            img_path, loaded_model, transform, device, class_names, topk=topk
+        )
+    except OSError as e:
+        raise click.ClickException(f"Could not read image: {e}") from e
 
     if verbose:
         print(f"Predictions for image: {img_path}")

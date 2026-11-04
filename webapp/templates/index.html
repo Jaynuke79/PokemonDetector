@@ -262,6 +262,18 @@
             }
         }
 
+        // A proxy such as nginx rejects oversized uploads with its own HTML page.
+        function readPredictResponse(response) {
+            const contentType = response.headers.get('Content-Type') || '';
+            if (contentType.includes('application/json')) {
+                return response.json();
+            }
+            if (response.status === 413) {
+                return { error: {{ upload_too_large_message|tojson }} };
+            }
+            return { error: `The server returned an unexpected response (${response.status}).` };
+        }
+
         // Handle prediction
         predictBtn.addEventListener('click', () => {
             const file = fileInput.files[0];
@@ -279,7 +291,7 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(readPredictResponse)
             .then(data => {
                 loading.style.display = 'none';
                 predictBtn.disabled = false;

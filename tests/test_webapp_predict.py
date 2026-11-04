@@ -141,3 +141,38 @@ def test_upload_truncated_after_its_header_is_a_client_error(client, caplog):
     assert response.status_code == 400
     assert response.get_json() == {"error": "File could not be read as an image"}
     assert "Could not decode upload" in caplog.text
+
+
+@pytest.mark.usefixtures("loaded_model")
+def test_unreadable_upload_is_logged(client, caplog):
+    upload(client, b"not an image")
+
+    assert "Could not decode upload" in caplog.text
+
+
+@pytest.mark.usefixtures("loaded_model")
+def test_os_error_after_the_upload_decoded_is_a_server_error(
+    webapp_module, client, monkeypatch, caplog
+):
+    def raise_os_error(*_args, **_kwargs):
+        raise OSError(SECRET)
+
+    monkeypatch.setattr(webapp_module, "predict_image", raise_os_error)
+
+    response = upload(client, image_bytes("PNG"))
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Prediction failed"}
+    assert SECRET in caplog.text
+
+
+@pytest.mark.usefixtures("loaded_model")
+def test_upload_over_the_size_limit_gets_a_json_413(webapp_module, client, monkeypatch):
+    monkeypatch.setitem(webapp_module.app.config, "MAX_CONTENT_LENGTH", 1024)
+
+    response = upload(client, image_bytes("BMP", size=(64, 64)), "image.bmp")
+
+    assert response.status_code == 413
+    assert response.get_json() == {
+        "error": "File is too large. The maximum upload size is 16MB."
+    }

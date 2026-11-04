@@ -38,9 +38,9 @@ pokemonDetector/
 │   ├── docker-compose.direct.yml
 │   └── nginx.config
 │
-├── models/                # Model Files (not in version control)
-│   ├── best_model_fold1.pth      # Download required
-│   └── class_names.json          # Download required
+├── models/                # Model Files
+│   ├── best_model_fold1.pth      # Download required (not in version control)
+│   └── class_names.json          # Tracked in git
 │
 └── pyproject.toml         # Package configuration
 ```
@@ -101,15 +101,15 @@ docker compose down
 
 ### Model Requirements
 
-**Required Files** (must be downloaded separately):
-- `best_model_fold1.pth` - Pre-trained ConvNeXt model weights
-- `class_names.json` - Pokemon class labels (151 classes for Gen1)
+**Required Files:**
+- `best_model_fold1.pth` - Pre-trained ConvNeXt model weights (must be downloaded separately)
+- `class_names.json` - Pokemon class labels (149 Gen1 classes; Nidoran♀ and Nidoran♂ are not among them), tracked in git
 
 **Download:** [Google Drive Link](https://drive.google.com/file/d/1jbtCxdDw7YZHVrTwmaona2r9ScCpnXm-/view?usp=sharing)
 
-**Location:** Place both files in `models/` directory
+**Location:** Place the weights in the `models/` directory, next to `class_names.json`
 
-**Note:** Model files are NOT in version control. The CLI and Flask app start without them but predictions fail with informative errors; the Windows launcher (`webapp/launcher.py`) instead explains the problem and exits with code 1.
+**Note:** The model weights are NOT in version control; `class_names.json` is. The CLI and Flask app start without the weights but predictions fail with informative errors; the Windows launcher (`webapp/launcher.py`) instead explains the problem and exits with code 1.
 
 ### Core Components
 
@@ -148,7 +148,7 @@ docker compose down
 
 - **Architecture:** ConvNeXt base (via `timm` library)
 - **Input:** RGB images, resized to 224x224, normalized with ImageNet stats
-- **Output:** Softmax probabilities over 151 classes (Gen1 Pokemon)
+- **Output:** Softmax probabilities over 149 classes (Gen1 Pokemon)
 - **Device:** Auto-detects CUDA GPU, falls back to CPU
 
 ## Important Notes
